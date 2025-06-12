@@ -155,9 +155,11 @@ const deleteCell = (cellNumber: number) => {
   return (
     <>
       <div className="flex flex-col gap-3">
+        <ul>
         {
           conversation.map((params, idx) => {
             return(
+              <li draggable>
               <Cell
                 idx={idx}
                 cellParams={params}
@@ -166,9 +168,11 @@ const deleteCell = (cellNumber: number) => {
                 deleteCell={deleteCell}
                 runThisAndBelow={runThisAndBelow}
               />
+              </li>
             )
           })
         }
+        </ul>
       </div>
     </>
   )

@@ -28,26 +28,35 @@ export function Cell(props:any) {
     runFunction(idx, text)
   }
 
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "Enter" && e.shiftKey) {
+      e.preventDefault();
+      onRun(idx, text, props.onClick);
+    }
+  };
+
   return (
     <div>
-      <div className="flex items-center gap-4`">
-          <div>
+      <div className="flex items-center gap-4">
+          <div className="flex-1 cursor-move">
             <h5>
-              {params.runs > 0 ? `[${params.runs}]` : "[]"}
+              {params.runs > 0 ? `[${params.runs}]` : "[ ]"}
             </h5>
           </div>
-          <Textarea value={text} placeholder={params.text} onChange={(e) => setText(e.target.value)} />
-          <div className="flex flex-col gap-1">
-            <Button variant="secondary" size="icon" className="size-4" onClick={() => onRun(idx, text, props.onClick)}>
+          <div className="flex-8">
+            <Textarea value={text} placeholder={params.text} onChange={(e) => setText(e.target.value)} onKeyDown={handleKeyDown}/>
+          </div>
+          <div className="flex flex-col gap-1 flex-1">
+            <Button variant="secondary" size="icon" className="size-4 cursor-pointer" onClick={() => onRun(idx, text, props.onClick)}>
               <Play />
             </Button>
-            <Button variant="secondary" size="icon" className="size-4" onClick={() => props.addCell(idx)}>
+            <Button variant="secondary" size="icon" className="size-4 cursor-pointer" onClick={() => props.addCell(idx)}>
               <PlusCircle/>
             </Button>
-            <Button variant="secondary" size="icon" className="size-4" onClick={() => props.deleteCell(idx)}>
+            <Button variant="secondary" size="icon" className="size-4 cursor-pointer" onClick={() => props.deleteCell(idx)}>
               <Trash2/>
             </Button>
-              <Button variant="secondary" size="icon" className="size-4" onClick={() => onRun(idx, text, props.runThisAndBelow)}>
+              <Button variant="secondary" size="icon" className="size-4 cursor-pointer" onClick={() => onRun(idx, text, props.runThisAndBelow)}>
               <ArrowDownFromLine />
             </Button>
           </div>
@@ -60,7 +69,9 @@ export function Cell(props:any) {
               Generating response
             </Button>
 
-          ) : (params.output)
+          ) : (
+            params.output
+          )
         }
       </div>
     </div>
