@@ -1,0 +1,51 @@
+You are a helpful assistant whose job is to identify tools that could help the user with their task. 
+
+# Task
+You are given a step-by-step example of how the user completed the task in the past. Generate examples of tools that would help the user the next time they were to complete a similar task. 
+
+Consider these points when coming up with tools:
+1. What tools could augment the user's current capabilities beyond their existing environment? 
+2. What are inefficiencies or repeated tasks in the workflows that could be automated?
+3. Where is the user struggling?
+
+# Input 
+Below is the step-by-step example of how the user completed the task in the past. 
+
+1. Dora opens the email in her Gmail account entitled Pre-rebuttal reviews for your UIST 2025 submission #6704. The email contains information about how to submit the rebuttal and what the reviews are. She scrolls immediately to the reviews and first looks at all of the scores that the reviewers gave her.
+2. Dora then scrolls to the top of the email to read through the details on when the rebuttal is do and information on how long the rebuttal should be. 
+3. Dora then navigates to "https://hci.stanford.edu/msb/internal" and logs in to access the website via Duo authentication. She then scrolls to the section entitled "Rebuttals and revisions". She reads through the steps for responding to reviews and clicks the link titled "Here is an example to follow" which opens a Google doc entitled "Memes CSCW review synthesis". 
+4. Dora creates a new Google Doc which she titles "UIST Reviews - Knoll". She goes back to the email and copies over the reviews at the bottom of her email. She names the tab in her document "Full Reviews.". 
+5. Dora creates a new tab in the same Google Doc which she calls "Review Synthesis". She starts by writing down high-level themes she observes in the reviews, mainly following the headings in the review from 1AC. 
+6. After writing down the themes, she begins to populate them with quotes from the reviews. Each quote starts with the reviewers name (1AC, 2AC, R1) and a quote from their review which reflects the theme. 
+7. As she is going through and finding quotes, she also is writing subbullets with her own thoughts on responses to the critiques which she writes as Dora: XYZ in a bolded purple font. She also writes TODO: XYZ in a bolded purple font with specific action items they can promise to reviewers. She completes this process for all of her themes. 
+8. Dora reorders the sections in her review summary based on their priority. 
+8. Dora then navigates to Slack to the channel #dora-advising. She sends a message to the channel saying that she has synthesized the reviews and wanted to get feedback. 
+9. Dora reads through the comments left in "UIST Reviews - Knoll" and integrates them into her review summary. 
+10. Dora creates a new tab in her Google Doc ("UIST Reviews - Knoll") called Rebuttal. She also returns to "https://hci.stanford.edu/msb/internal" where she scrolls to a section titled "example rebuttal, from Ethan's DeduceIt UIST paper". She begins to draft the rebuttal starting with a sentence thanking the reviewers for recognizing the strengths in the paper. 
+11. Dora follows the order of her review synthesis and begins to draft the rebuttal. She starts each section by mentioning "R1 pointed out XYZ" or "1AC and R3 mentioned that". She follows it with the response drafted in the summary section and ends with specific action items / changes promised in the paper. 
+12. For some action items, Dora must find prior work to support her claim. She navigates to Google Scholar and types in the keywords "UIST + sociotechnical" and scrolls through papers. She also opens up the ACM DL and searches for the same keywords, narrowing it down to only papers that have been published at the UIST conference. 
+13. For some action items, Dora also looks for specific references in her paper. To do so, she opens up Overleaf where she clicks on the document "Knoll". She included references to specific sections in her paper.
+14. Dora then navigates to Slack to the channel #dora-advising. She sends a message to the channel saying that she has finished drafting the rebuttal and wanted to get feedback. 
+15. Dora accepts suggestions that Michael and Diyi have made in the Google Doc on her rebuttal tab. They have also left comments on the side of her document on new things to include which she integrates. She puts significant changes after Michael and Diyi made suggestions in blue.  
+16. Dora then begins to polish the writing quality in the rebuttal and edit specific words or phrases. She opens ChatGPT where she uploads her rebuttal and the reviews. She queries the model for suggestioins on papers to support a point she has made. 
+17. She next queries ChatGPT to "critique the rebuttal as if you are R1". She then queries ChatGPT to simulate responses to the rebuttal, and their final review score, from 2AC, R1, and R2. Then simulate a final metareview and score from 1AC.
+18. Dora reviews the responses from ChatGPT and returns to the draft of her rebuttal where she begins to edit sections that were identified as weak. She iteratively queries ChatGPT to simulate responses and improves her rebuttal. 
+19. Finally, Dora uses the Word Count feature on Google Docs to see how long her rebuttal is. She shortens her rebuttal to get the word count below the requirement for UIST. 
+20. Dora navigates to Slack to #dora-advising where she says she has an updated version of the draft and asks for any feedback. She mentions that new changes are in blue. 
+20. Dora navigates to New Precision Conference and clicks on her submissin to UIST 2025. She pastes her written rebuttal in the textbox. 
+
+# Task
+Generate **20 distinct, well-supported tools** that would support Dora in this task. Make the tools as useful as possible. Justify why the tool is needed by citing the step(s) it would help with and the motivation. 
+
+Return your results in this exact JSON format:
+
+{
+"tools": [
+{
+"name": [Insert the name of the tool],
+"tool": "[Insert a 3-4 sentence description of the tool here with details on how the tool would work. Be as specific as possible.]",
+"reasoning": "[Provide 1-2 sentence rationale as to why the tool would be useful, referencing particular steps.]",
+},
+...
+]
+}

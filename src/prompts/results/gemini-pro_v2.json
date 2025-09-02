@@ -1,0 +1,104 @@
+{
+  "tools": [
+    {
+      "name": "Review Details Extractor",
+      "tool": "This tool automatically parses an academic review email or document. It uses natural language processing to identify and extract key information such as reviewer scores, the rebuttal deadline, and word count limitations. The output is a clean, structured summary, freeing the user from manually searching for this critical information.",
+      "reasoning": "This tool would automate the tedious parts of steps 1 and 2, where Dora has to scroll around a long email to find specific logistical details and scores, allowing her to focus immediately on the content of the reviews."
+    },
+    {
+      "name": "Thematic Review Synthesizer",
+      "tool": "This AI-powered tool ingests the full text of all reviews and automatically groups comments by recurring themes. [19] It identifies clusters of feedback related to methodology, contribution, clarity, or other common academic critique points. The tool presents a dashboard of themes, each populated with the corresponding quotes from each reviewer.",
+      "reasoning": "This directly supports and automates the most labor-intensive part of the process in steps 5 and 6, where Dora manually identifies themes and copies over quotes, which is both time-consuming and cognitively demanding."
+    },
+    {
+      "name": "Reviewer Persona Simulator",
+      "tool": "This tool uses generative AI to simulate a specific reviewer's reaction to a draft rebuttal. [7, 8] The user uploads their rebuttal and the original reviews. They then select a reviewer (e.g., 'R1'), and the AI, adopting the tone, priorities, and critiques of that reviewer, provides feedback on how convincing the rebuttal is and suggests improvements.",
+      "reasoning": "This automates and enhances step 17, where Dora manually prompts a general-purpose LLM to critique her work. This specialized tool would provide more targeted and consistent feedback, improving the quality of the final rebuttal."
+    },
+    {
+      "name": "Federated Academic Search",
+      "tool": "This widget provides a single search interface that simultaneously queries multiple academic databases like Google Scholar, ACM Digital Library, and Semantic Scholar. [3] It would include specialized filters for conference proceedings, publication year, and keywords. The tool would also help de-duplicate results from the different sources.",
+      "reasoning": "This would streamline step 12, where Dora has to navigate to and search multiple websites separately to find prior work, saving time and centralizing her literature search."
+    },
+    {
+      "name": "Rebuttal Strategy Board",
+      "tool": "A visual, Kanban-style interface where each major theme from the review synthesis is a card. Dora can drag and drop these cards into columns like 'High Priority,' 'Medium Priority,' and 'Low Priority.' Each card can contain the relevant review snippets and her draft responses, making it easy to visually organize the rebuttal's structure.",
+      "reasoning": "This tool augments step 8 by transforming a linear document reordering task into a more flexible, visual, and strategic planning process."
+    },
+    {
+      "name": "Deadline and Task Tracker",
+      "tool": "A simple widget that extracts the rebuttal due date and displays a countdown timer. [24] It would also allow Dora to create a checklist of sub-tasks (e.g., 'Synthesize reviews,' 'Draft rebuttal,' 'Get feedback') with their own deadlines. The widget could sync with a personal calendar like Google Calendar or Outlook.",
+      "reasoning": "This addresses step 2 and the overall project management aspect of the task. Instead of just noting the deadline, it provides a persistent, visual reminder and a way to structure the work, similar to tools like myHomework Student Planner. [22, 23, 25]"
+    },
+    {
+      "name": "Action Item Generator",
+      "tool": "This tool scans the draft rebuttal and automatically identifies sentences that promise a specific change or action. It extracts these promises (e.g., 'We will clarify the caption for Figure 3,' 'We will add a paragraph discussing limitation X') and compiles them into a checklist. This list can be used to ensure all promises are fulfilled in the revised paper.",
+      "reasoning": "This automates the tracking of tasks Dora manually identifies in step 7 (the 'TODO' items). It ensures that promises made in the rebuttal are not forgotten during the revision process."
+    },
+    {
+      "name": "Citation Helper",
+      "tool": "While writing the rebuttal, Dora can highlight a claim she's making. This tool would then take that highlighted text and suggest relevant papers to cite from academic search engines. [11] It would be more targeted than a full search, focusing on providing evidence for specific points.",
+      "reasoning": "This enhances step 12 by integrating the literature search directly into the writing workflow, making the process of finding supporting evidence more efficient and contextual."
+    },
+    {
+      "name": "Paper Cross-Referencer",
+      "tool": "A widget where Dora can upload the PDF of her original submission. When drafting the rebuttal, she can type a query like, 'What did I say about the sociotechnical aspects?' The tool would then perform a semantic search on her own paper and pull up the relevant sections, paragraphs, or figures.",
+      "reasoning": "This would eliminate the need for step 13, where Dora has to manually open Overleaf and search through her own document to find specific references, thereby reducing context switching."
+    },
+    {
+      "name": "Collaboration Notifier",
+      "tool": "A simple tool integrated with her document editor. With one click, Dora can send a pre-formatted message to a designated Slack channel or email list. The message would announce that a new version is ready for feedback and include a link to the document and a summary of recent changes.",
+      "reasoning": "This automates the repetitive communication tasks in steps 9, 14, and 20, ensuring her advisors are notified promptly without her having to manually craft a message each time."
+    },
+    {
+      "name": "Tone and Politeness Analyzer",
+      "tool": "This tool analyzes the text of the rebuttal and provides feedback on its tone. It would flag sentences that might be perceived by reviewers as overly defensive, dismissive, or arrogant. The tool would suggest alternative phrasing to maintain a professional and respectful tone while still being assertive.",
+      "reasoning": "This would augment step 16. While Dora polishes the writing, this specialized tool would focus on a crucial, high-stakes aspect of rebuttal writing that general grammar tools often miss."
+    },
+    {
+      "name": "Rebuttal Word Count Manager",
+      "tool": "This tool helps shorten a rebuttal to meet strict length requirements. It goes beyond a simple word count by highlighting verbose phrases, passive voice, and redundant sentences. It can suggest more concise alternatives and has a target word count feature to guide the editing process.",
+      "reasoning": "This provides a more powerful version of the tool used in step 19. Instead of just identifying the word count, it actively helps Dora shorten the text without losing critical information."
+    },
+    {
+      "name": "Change Highlighter",
+      "tool": "After incorporating feedback, Dora can use this tool to compare the current draft with a previous version. It automatically generates a version where all new or significantly altered text is highlighted in a specific color (like the blue she uses manually). This creates a clean copy to share with collaborators.",
+      "reasoning": "This automates the manual and potentially error-prone process Dora performs in steps 15 and 20, making it easier for her advisors to see exactly what has changed between versions."
+    },
+    {
+      "name": "Research Resource Hub",
+      "tool": "A personal dashboard where Dora can save and categorize links to essential resources. This would include links to internal lab guides, example rebuttals, conference style guides, and submission portals. She could organize these resources by conference or project for easy access.",
+      "reasoning": "This addresses the friction in step 3 and 10, where Dora must remember and navigate to specific internal websites. The hub would act as a centralized starting point for any rebuttal task."
+    },
+    {
+      "name": "Rebuttal Argument Generator",
+      "tool": "This AI tool helps brainstorm responses to tricky reviewer comments. [12, 14, 16] Dora inputs a specific critique from a reviewer, and the tool generates several potential counterarguments or response strategies. It could suggest ways to frame a limitation as a scope choice or propose alternative experiments to promise.",
+      "reasoning": "This augments step 7 and 11. While Dora writes her own thoughts, this tool can help her overcome writer's block or consider angles she hadn't thought of, strengthening her arguments."
+    },
+    {
+      "name": "Panel Simulation",
+      "tool": "An advanced AI tool that extends the 'Reviewer Persona Simulator.' After simulating each reviewer's response to the rebuttal, this tool would then simulate the meta-reviewer's (1AC's) final decision-making process. It would model how the meta-reviewer might weigh the updated opinions of the other reviewers and predict a final score and summary.",
+      "reasoning": "This directly targets the second half of step 17. It provides a more holistic view of the potential outcome of the rebuttal, going beyond individual critiques to simulate the consensus-building part of the review process."
+    },
+    {
+      "name": "Lab Knowledge Base",
+      "tool": "A tool for a research lab to build a private, searchable database of past reviews and rebuttals. When a new set of reviews comes in, a user can search for similar critiques (e.g., 'critiques about sample size') to see how lab members have successfully addressed them in the past. It would act as institutional memory for rebuttal-writing.",
+      "reasoning": "This tool would provide a more powerful and targeted version of the resource lookup in step 3. Instead of just one example, Dora could draw on the collective experience of her entire lab."
+    },
+    {
+      "name": "Plain Text Formatter",
+      "tool": "A simple utility that strips all formatting from the final Google Docs rebuttal and converts it to clean plain text. It would ensure that no stray formatting characters (like smart quotes or special bullets) cause issues when pasting into a simple textbox in a conference submission system.",
+      "reasoning": "This is a preventative tool for step 21. It mitigates the risk of copy-paste errors or formatting glitches that can occur when moving from a rich text editor to a basic web form."
+    },
+    {
+      "name": "Quote and Response Linker",
+      "tool": "Within the review synthesis document, this tool would allow Dora to create a direct link between a reviewer's quote and her drafted response. Clicking on the quote would jump to the response, and vice-versa. This would help ensure that every single point raised by the reviewers has been explicitly addressed in the rebuttal plan.",
+      "reasoning": "This would improve the organization within the documents created in steps 4-7. It creates an explicit mapping between critique and response, making it easier to verify that no points were dropped."
+    },
+    {
+      "name": "Final Polish Assistant",
+      "tool": "An AI-powered writing assistant focused on academic style and clarity. [4] Unlike a basic grammar checker, it would be trained on successful academic papers to suggest improvements for flow, transition sentences, and word choice appropriate for a formal rebuttal. It would help with the final polishing described in step 16.",
+      "reasoning": "This tool offers a specialized version of the general writing help sought in step 16. It focuses specifically on the conventions of academic writing, providing more relevant suggestions than a general-purpose grammar or style checker."
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+You are a helpful assistant tasked with generating tools to support a user's tasks.
+
+# Generate Tools
+
+Using a description of the user's current task, generate examples of tools that would help Dora complete the task. Provide concrete and concise descriptions of tools. Tools should be standalone applications that can easily be implemented by a large language model or with HTML/CSS/JS. Tools will be rendered as additional windows overlayed on top of the main Google Docs interface.
+
+Consider these points when coming up with tools:
+- What specific tasks is Dora working on?
+- What are parts of their workflows that could be aided by tools?
+
+# Input
+
+Below is a set of actions Dora has performed:
+
+## User Activity Transcriptions
+
+User Activity:
+The user is starting to draft their rebuttal paragraph on the cost of creating modules
+R1: “Finally, another concern relates to the design of the deployment study where a lot of the knowledge modules were pre-populated and, according to the results, most participants only interacted with these existing modules. From my perspective, the “success” of this approach would lie on whether there is sufficient benefit for the users to expend the “upfront cost” to create and manage knowledge modules vs. providing necessary context on-the-fly for each request and depend on the current search/retrieval capabilities of the LLM.”
+Dora: We can mention that the expectation from a peer production system (e.g., Wikipedia) is that there will be a few contributors who produce the bulk of content whereas more users are likely to just consume content (in our case, modules) rather than be involved in creating them. Thus, the interaction ends up just being “one click” to add and activate the module. 
+We find that for the pre-made modules, users would submit several queries with them activated over different usage sessions. 
+TODO: Add to limitations more discussion on challenges with this cost-benefit tradeoff and sustaining the module ecosystem
+
+# Task
+
+Generate **10 distinct, well-supported tools** that can support Dora in drafting the paragraph in her UIST rebuttal on the cost of creating modules. Make the tools as useful as possible.
+
+Return your results in this exact JSON format:
+
+{
+"tools": [
+{
+"name": [Insert the name of the tool],
+"tool": "[Insert a 3-4 sentence description of the tool here with details on how the tool would work. Be as specific as possible.]",
+"reasoning": "[Provide 1-2 sentence rationale as to why the tool would be useful.]",
+},
+...
+]
+}"""
+

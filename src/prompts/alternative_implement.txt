@@ -1,0 +1,56 @@
+You are both a Senior PM and a Software Architect working together to decide whether there are new lightweight tools to help the user with their task:
+
+# Context
+## User Tasks
+Drafting Rebuttal Document Structure: Creating clear headings and sections within the Google Docs for the rebuttal, such as 'Review Summary' and 'Novelty of Interactions', to organize responses effectively.
+Integrating Reviewer Feedback: Incorporating specific reviewer comments and recommendations, including feedback on participants and methods, directly into the rebuttal document to address critiques.
+Preparing Post-Rebuttal Sections: Developing dedicated sections within the rebuttal document to add comments or reflections that might be relevant after the initial rebuttal submission.
+Refining Rebuttal Document Formatting: Applying formatting changes, such as using bullet points and adjusting text styles, to enhance the readability and visual organization of the rebuttal content.
+Addressing Storage Limitations: Managing Google Drive content due to a prominent storage warning to ensure continued ability to work on and save documents.
+## Context & pain-points
+The user is preparing rebuttals for academic conferences, specifically for the UIST 2025 conference and a CSCW paper., The 'UIST Rebuttals' Google Doc and 'Memes CSCW review synthesis' Google Doc are being used to draft and synthesize feedback., The UIST rebuttal document includes specific sections like 'Review Summary', 'Novelty of Interactions', 'Fairness of Evaluation', and 'Comparison to other Systems'., Specific reviewer feedback on participant populations and methodologies is being addressed and incorporated., The user is preparing sections for post-rebuttal comments., The process involves actively drafting responses, synthesizing feedback, and potentially using TODO lists to refine analysis and address comments., General guidelines for rebuttals, such as aggregating feedback and ranking critiques, may be influencing the user's approach., A Google account storage warning is prominently displayed, indicating that the user's storage is nearing its limit and requires management.
+
+## Existing Ideas
+[{'name': 'Rebuttal Priority Sorter', 'id': 'rebuttal-priority-sorter-01', 'purpose': "Analyzes a list of reviewer critiques and ranks them by predicted importance, helping the user strategically address the most critical 'fatal flaw' comments first within tight space limits.", 'implementation': "A web interface with a text area for the user to paste all reviewer comments. An LLM is prompted to classify each point by type (e.g., 'Major Methodological Flaw', 'Scope Concern', 'Minor Presentation Issue') and assign a priority score. The output is a re-ordered list of critiques, from most to least critical.", 'utility': 9, 'feasibility': 9}, {'name': 'Review-Driven Rebuttal Template', 'id': 'rebuttal-template-generator-01', 'purpose': 'Automates the creation of a structured rebuttal document by parsing raw reviewer feedback. This saves the user the tedious task of manually copying and organizing critiques before they can begin writing.', 'implementation': 'A web app where the user pastes the complete, unstructured text of all reviews. The agent identifies the boundaries for each reviewer and each distinct point. It then generates a formatted Markdown or plain text document with headers for each reviewer and sub-sections for each point, ready for the user to fill in their responses.', 'utility': 9, 'feasibility': 9}, {'name': 'In-Paper Evidence Finder', 'id': 'in-paper-evidence-finder-01', 'purpose': "Helps a user respond to a reviewer's claim that something is missing by finding the exact sentence or paragraph in the original paper that already addresses the point.", 'implementation': 'A web tool with two text boxes. The user pastes the specific reviewer critique in the first box and the full text of their submitted manuscript in the second. An LLM performs a semantic search on the manuscript to find and display the most relevant text snippets that can be used to refute the critique.', 'utility': 9, 'feasibility': 7}, {'name': 'Reviewer Intent Interpreter', 'id': 'reviewer-intent-interpreter-01', 'purpose': "Infers the underlying concern behind a reviewer's ambiguous or high-level feedback. This helps the author address the root cause of a critique rather than just its surface-level symptom.", 'implementation': "A prompt-based tool where the user pastes a single, challenging reviewer comment. An LLM, prompted to act as an experienced academic mentor, analyzes the comment and provides a bulleted list of possible deeper meanings or 'questions behind the question' that the reviewer may be implying.", 'utility': 8, 'feasibility': 9}, {'name': 'Related Work Gap Finder', 'id': 'related-work-gap-finder-01', 'purpose': "Suggests relevant academic papers that may be missing from the bibliography in response to reviewer feedback. This helps address 'missing related work' critiques effectively.", 'implementation': "An interface where the user pastes their paper's abstract and the reviewer's comment on related work. The agent uses this context to query an external academic database API (e.g., Semantic Scholar, ArXiv). It returns a list of highly relevant paper titles and abstracts that the user can review and potentially cite.", 'utility': 8, 'feasibility': 4}]
+
+# Task
+## Phase 1: Ideate on new tools
+Brainstorm 8-10 bold, creative agent concepts that are different from the existing ideas. They should have a highly specific and scoped purpose. Agents should be standalone web applications or prompts. Do not report these ideas.
+
+## Phase 2: Select the best 3 ideas
+Choose the top 3 (1 automation, 1 expansion, 1 wildcard), justifying each choice by referencing exact user needs from the user's context. 
+
+## Phase 3:
+For the 3 best ideas, make them even more creative and useful. 
+
+## Phase 4: Evaluate new tools
+For each of the ideas, evaluate its strength using two scales:
+
+###Utility Scale
+Rate your confidence based on how useful the user would find the agent for their task. Consider:
+Demonstrated need: Is user currently struggling with this task in their workflow?
+Capability extension: Is this tool doing something the user would not otherwise be able to do?
+Likelihood of using: Will the user repeatedly interact with the agent?
+Score: 1 (not that useful) to 10 (extremely useful, will drastically improve workflow). Only provide high score (8-10) if there is direct and specific evidence the user would find the agent useful. Recall that most tools will only score a 5 on this scale.
+
+### Feasibility Scales
+Rate whether this idea is feasible to implement as a single-page web application. Implementations that require access to external APIs / services (e.g., Google Drive API) OR require extensive user input should be considered infeasible. 
+
+Score: 0 (infeasible) or 1 (feasible)
+
+# Output
+Return your results in this exact JSON format:
+{
+"agents": [
+{
+"name": [Insert the name of the agent],
+"id": [Unique identifier of the existing tool or new identifier],
+"purpose": "[Insert a 1-2 sentence description of the agent]",
+"utility": "[Utility score (1–10)]",
+"feasibility": "[Feasibility judgement (boolean)]",
+"implementation": [Write 3-4 sentences of instruction on how the agent could be implemented if it is feasible OR justification as to why the tool is not feasible]",
+},
+...
+// Return the top 3 agents. Return empty list if no agents are needed for the task.
+]
+}

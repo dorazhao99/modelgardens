@@ -1,0 +1,104 @@
+{
+"tools": [
+{
+"name": "Rebuttal Intake Dashboard",
+"tool": "This tool automatically parses the submission review email to extract key information such as reviewer scores, the rebuttal deadline, and length constraints. It presents this information in a clean, centralized dashboard. The dashboard would also automatically search the user's linked internal knowledge bases (like a group's internal website) to surface and link to relevant example rebuttals or guides.",
+"reasoning": "This tool would eliminate the need for Dora to manually scroll through emails to find critical information and then separately navigate to internal websites to find examples, streamlining the initial information-gathering process. [Steps 1, 2, 3]"
+},
+{
+"name": "AI-Powered Theme Spotter",
+"tool": "After ingesting the reviews, this AI tool analyzes the text from all reviewers simultaneously to identify and cluster common themes. It would present a high-level summary of shared critiques (e.g., 'Concerns about novelty mentioned by 1AC, R1') and points of disagreement between reviewers. This provides a more holistic starting point than just following one reviewer's structure.",
+"reasoning": "This augments Dora's ability to synthesize reviews by moving beyond one reviewer's perspective, helping her to identify the most critical and widely-held concerns immediately. [Step 5]"
+},
+{
+"name": "Automated Synthesis Document Generator",
+"tool": "This tool connects to the user's Google Drive and automatically creates a new, pre-formatted Google Doc for the rebuttal. It would create tabs for 'Full Reviews', 'Review Synthesis', and 'Rebuttal', and would automatically copy and paste the full text of the reviews into the 'Full Reviews' tab, saving manual setup time.",
+"reasoning": "This automates the repetitive and tedious setup tasks of creating the document, creating tabs, and copying over the raw reviews from the email. [Step 4]"
+},
+{
+"name": "Quote Aggregator",
+"tool": "Working within the synthesis document, this tool allows Dora to click on an AI-generated theme (e.g., 'Methodological Concerns') and automatically find and insert all relevant quotes from the different reviewers that pertain to that theme. The quotes would be automatically formatted and attributed to the correct reviewer (e.g., 'R1:', '2AC:').",
+"reasoning": "This tool automates the laborious process of manually hunting for and copy-pasting supporting quotes for each theme, ensuring no key piece of feedback is missed. [Step 6]"
+},
+{
+"name": "Response & Action Item Tracker",
+"tool": "Within the Google Doc, this tool provides a structured interface next to each cluster of critiques. It would have distinct input fields for 'Draft Response' and 'Action Items (TODOs)'. Action items can be tracked, assigned to collaborators, and marked as complete, creating a clear project management view within the synthesis.",
+"reasoning": "This formalizes Dora's ad-hoc method of using bolded purple font, providing a more robust way to track her own thoughts and concrete action items that need to be addressed in the revision. [Step 7]"
+},
+{
+"name": "Critique Prioritization Engine",
+"tool": "This tool analyzes the text of the reviews and the provided scores to rank the identified themes. It would weigh factors like reviewer agreement, explicit statements of importance (e.g., 'This is a major flaw'), and overall negative sentiment to suggest an order in which Dora should address the critiques.",
+"reasoning": "This provides a data-driven approach to prioritizing work, helping Dora move beyond her own intuition to focus on the issues most likely to impact the paper's acceptance. [Step 8]"
+},
+{
+"name": "Semantic Literature Search",
+"tool": "This is an advanced search tool that integrates with Google Scholar and the ACM Digital Library. Instead of just keywords, Dora can input a reviewer's full critique or her proposed counter-argument, and the tool will find conceptually related papers, even if they don't share the same keywords. It would have built-in filters for specific venues like UIST.",
+"reasoning": "This is a significant upgrade to manual keyword searching, allowing Dora to find more relevant and nuanced supporting literature for her arguments much more efficiently. [Step 12]"
+},
+{
+"name": "Grounded Reviewer Simulator",
+"tool": "This AI tool is 'primed' with the initial reviews for the paper. Dora can then ask it to critique her draft rebuttal from the specific perspective of 'R1' or '2AC'. The AI would adopt the tone, concerns, and likely biases of the original reviewer to provide highly targeted and realistic feedback on the rebuttal's weak points.",
+"reasoning": "This is a more powerful and grounded version of her ChatGPT prompting, as the simulation is tailored to each specific reviewer's known critiques, leading to more effective iterative improvement. [Steps 17, 18]"
+},
+{
+"name": "Source Paper Bridge",
+"tool": "This plugin for Google Docs connects to Dora's original submission (via PDF or an Overleaf project). It makes her own paper searchable from within the rebuttal document, allowing her to quickly find and insert accurate references to specific sections, figures, or tables (e.g., '...as shown in Figure 3.1 of our submission').",
+"reasoning": "This tool eliminates the need for Dora to constantly switch between her rebuttal draft and her Overleaf project, streamlining the process of referencing her own work. [Step 13]"
+},
+{
+"name": "Generative Rebuttal Drafter",
+"tool": "This tool takes the completed review synthesis—containing themes, grouped quotes, and Dora's drafted responses—as input. It then generates a coherent, well-structured first draft of the full rebuttal, handling boilerplate language ('We thank the reviewers for their insightful comments...') and organizing the arguments logically.",
+"reasoning": "This automates the initial, often time-consuming, drafting process, allowing Dora to focus her energy on refining arguments rather than starting from a blank page. [Step 11]"
+},
+{
+"name": "Intelligent Text Compressor",
+"tool": "When a rebuttal is over the word count limit, this tool analyzes the text to identify sentences or clauses that can be shortened or removed with the least impact on the core argument. It would suggest specific edits (e.g., 'rephrase X to be more concise') to help meet length requirements without weakening the rebuttal.",
+"reasoning": "This tool helps solve the difficult task of shortening a text, providing concrete suggestions on where to cut words without sacrificing critical points. [Step 19]"
+},
+{
+"name": "Integrated Collaboration Notifier",
+"tool": "A Google Docs add-on that connects to Slack. With a single click, Dora can send a notification to a specified channel (e.g., #dora-advising) with a pre-formatted message indicating the draft's status and a link to the document. This can be used at various milestones like 'synthesis complete' or 'rebuttal draft ready'.",
+"reasoning": "This automates the repetitive task of switching to Slack to post updates for her advisors, keeping the workflow centered in the document and ensuring clear communication. [Steps 9, 14, 20]"
+},
+{
+"name": "Rebuttal Version Diff Tool",
+"tool": "This tool provides version control within the Google Doc. Instead of manually coloring text blue, Dora can share a version with her advisors, and upon getting it back, the tool can create a 'diff' view that clearly highlights all new suggestions, comments, and edits, which she can then accept or reject one by one.",
+"reasoning": "This replaces Dora's manual and error-prone color-coding system with a robust versioning system, making it easier to track and integrate feedback from collaborators. [Step 15, 20]"
+},
+{
+"name": "Cross-Review Contradiction Detector",
+"tool": "An analysis tool that specifically scans the text of all reviews to flag explicit contradictions between reviewers. For example, it would highlight if R1 requests a new user study while R2 states that the current study is sufficient. This helps the author identify and strategically address conflicting advice.",
+"reasoning": "This tool helps Dora navigate one of the trickiest parts of a rebuttal—conflicting reviewer feedback—by explicitly identifying the contradictions so she can develop a targeted response. [Step 5]"
+},
+{
+"name": "Action Item to Paper-Patch Generator",
+"tool": "This tool reads the 'TODO' list from the Review Synthesis tab and suggests concrete changes for the original paper. For an action item like 'Acknowledge the limitation of using a student population,' the tool would draft a sentence or two that could be directly inserted into the 'Limitations' section of the Overleaf document.",
+"reasoning": "This tool bridges the gap between the rebuttal promises and the actual paper revisions, helping to automate the process of updating the source paper based on the action items. [Step 7]"
+},
+{
+"name": "Academic Writing Stylist",
+"tool": "An AI-powered writing assistant that has been specifically fine-tuned on high-impact academic papers from a given field (e.g., HCI). It goes beyond generic grammar checks to suggest improvements for tone, conciseness, and use of academic phrasing, ensuring the rebuttal's language is polished and professional.",
+"reasoning": "This provides a more specialized form of writing support than a general tool like ChatGPT, offering nuanced suggestions tailored to the conventions of scientific writing. [Step 16]"
+},
+{
+"name": "Rebuttal Strength Forecaster",
+"tool": "An AI tool that analyzes the draft rebuttal in the context of the original reviews and predicts the likely outcome. It might provide a confidence score, such as 'The response to R1's main critique has an 85% chance of satisfying the reviewer,' and flag arguments that are unlikely to be convincing.",
+"reasoning": "This tool augments Dora's simulation process by adding a predictive layer, helping her gauge the potential effectiveness of her arguments before submission. [Step 17, 18]"
+},
+{
+"name": "Citation Verifier",
+"tool": "When a paper is mentioned or cited in the rebuttal draft, this tool automatically cross-references it with academic databases like Google Scholar or the ACM DL. It verifies that the citation is real (not an LLM hallucination), fetches the correct bibliographic data, and can flag potential mismatches.",
+"reasoning": "This tool provides a critical safeguard against hallucinated references that can arise from using LLMs for literature suggestions, ensuring the rebuttal's academic integrity. [Step 12, 16]"
+},
+{
+"name": "Conference Submission Formatter",
+"tool": "A utility that takes the final, approved rebuttal from the Google Doc and automatically converts it into the precise format required by the conference submission system. It would handle conversions to plain text, Markdown, or other specific formats, removing any incompatible formatting to prevent submission errors.",
+"reasoning": "This automates the final, stressful step of submission, preventing copy-paste errors and ensuring the rebuttal conforms to the platform's technical requirements. [Step 20]"
+},
+{
+"name": "Lab-Wide Rebuttal Knowledge Base",
+"tool": "A searchable, internal repository for a research lab or group where past successful rebuttals are stored and indexed. Dora could search this knowledge base by conference (e.g., 'UIST'), reviewer comment type (e.g., 'critique of statistical method'), or author to find relevant examples from her own colleagues' work.",
+"reasoning": "This tool institutionalizes knowledge-sharing, giving Dora access to a much richer set of examples than the single one she found, leading to more effective and varied rebuttal strategies. [Step 3, 10]"
+}
+]
+}

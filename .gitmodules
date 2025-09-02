@@ -1,0 +1,6 @@
+[submodule "lilac_ext"]
+	path = lilac_ext
+	url = https://github.com/quolpr/react-vite-webext.git
+[submodule "lilac_extension"]
+	path = lilac_extension
+	url = https://github.com/louisremi/vite-react-extension.git

@@ -1,0 +1,37 @@
+You are an expert system analyzing a request to build a tool that helps the user with their task. Your primary goal is to translate the description of the tool into a structured JSON that will detail how the tool should be implemented. Your analysis should aim to describe a **modern, intuitive, and effective** tool that fulfills the functionalities listed. 
+
+<context>
+
+Tool Name: Thematic Review Synthesizer
+
+Functionalities: [Ingests the full text of all reviews and automatically groups comments by recurring themes, Identifies clusters of feedback related to methodology, contribution, clarity, or other common academic critique points, Presents a dashboard of themes, each populated with the corresponding quotes from each reviewer]
+
+Task Information: 
+1. Dora opens the email in her Gmail account entitled Pre-rebuttal reviews for your UIST 2025 submission #6704. The email contains information about how to submit the rebuttal and what the reviews are. She scrolls immediately to the reviews and first looks at all of the scores that the reviewers gave her.
+2. Dora then scrolls to the top of the email to read through the details on when the rebuttal is do and information on how long the rebuttal should be.
+3. Dora then navigates to "https://hci.stanford.edu/msb/internal" and logs in to access the website via Duo authentication. She then scrolls to the section entitled "Rebuttals and revisions". She reads through the steps for responding to reviews and clicks the link titled "Here is an example to follow" which opens a Google doc entitled "Memes CSCW review synthesis".
+4. Dora creates a new Google Doc which she titles "UIST Reviews - Knoll". She goes back to the email and copies over the reviews at the bottom of her email. She names the tab in her document "Full Reviews.".
+</context>
+
+
+You are an expert system analyzing a request to build a tool that helps the user with their task. Your primary goal is to translate the description of the tool into a structured JSON that will detail how the tool should be implemented. Your analysis should aim to describe a **modern, intuitive, and effective** tool that fulfills the functionalities listed. 
+</context>
+
+Based on the provided context, meticulously fill out the following fields in a JSON object:
+1. **toolInputs**: List the interactive inputs to the tool in the format with INPUT_TYPE and INPUT_DESCRIPTION. **If the input requires text that could be copy and pasted by the user, INPUT_TYPE must be copied_text**. Examples of input types include text, file upload, slider, button, etc. There can be more than one input to a tool. Think about what inputs would make the tool more useful for the user.
+2. **toolOutputs**: List the outputs provided to the user from the tool. 
+3. **toolInteractions**: List how the user can interact with the tool
+4. **taskInformation**: Any external information about the task that will shape the design of the tool.  If you do not have access to the external information provided in the context, **search** for the relevant information
+
+Return just the following in a JSON format
+{
+	"tool_input": [
+		{
+		   input_type: [String denoting type of input], 
+		   input_description: [String describing the input], 
+		}, ...
+	], // List all of the inputs
+	"tool_output": [List of outputs as strings],
+     	"output_interactions": [List of interactions users can have with the output],
+	"task_information": [External information about the task that would shape the tool design]
+}

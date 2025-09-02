@@ -1,0 +1,98 @@
+{
+"tools": [
+{
+"name": "Review Email Parser",
+"tool": "A browser extension that scans incoming UIST review emails, automatically extracts reviewer scores, review texts, deadlines, and submission instructions into structured JSON, and offers a one-click import into a Google Doc or dashboard.",
+"reasoning": "Automates steps 1–2 to eliminate manual scrolling and copy-pasting of reviews and deadlines."
+},
+{
+"name": "Rebuttal Deadline Tracker",
+"tool": "A standalone dashboard or calendar plug-in that ingests deadlines from parsed emails, displays countdown timers, issues reminders as word-limit and due-date milestones approach, and warns if the draft exceeds length limits.",
+"reasoning": "Addresses step 2 and step 19 by ensuring Dora never misses a due date or exceeds the word count."
+},
+{
+"name": "Duo SSO Auto-Login",
+"tool": "A desktop utility that securely stores Duo credentials and automates the Duo two-factor handshake, allowing Dora to access internal sites with a single click.",
+"reasoning": "Speeds up step 3’s authentication and reduces friction logging into internal tools."
+},
+{
+"name": "Rebuttal Doc Template Wizard",
+"tool": "A Google Workspace Add-on that, given a paper title and submission ID, generates a multi-tab document pre-formatted with "Full Reviews," "Review Synthesis," and "Rebuttal" tabs, plus styles for quotes, TODOs, and action items.",
+"reasoning": "Eliminates the manual creation and formatting described in steps 4–5."
+},
+{
+"name": "Auto Review Importer",
+"tool": "A plug-in that, upon detecting a parsed review email, auto-populates the "Full Reviews" tab in the rebuttal template with reviewer IDs, scores, and full review texts.",
+"reasoning": "Automates step 4’s copy/paste process, saving time and avoiding errors."
+},
+{
+"name": "Review Theme Extractor",
+"tool": "An AI service that analyzes imported reviews, identifies high-level themes and common critique categories, clusters related comments, and presents them for user confirmation or adjustment.",
+"reasoning": "Streamlines step 5 by automatically surfacing themes rather than manual theme identification."
+},
+{
+"name": "Reviewer Quote Highlighter",
+"tool": "A tool integrated into the document that lets Dora highlight text in the review pane; it then auto-generates formatted bullet points with reviewer IDs and the quote text, ready for insertion into "Review Synthesis."",
+"reasoning": "Automates the quote extraction and attribution in step 6."
+},
+{
+"name": "Action Item Suggestion Assistant",
+"tool": "An AI assistant that, for each review snippet, suggests possible response strategies and generates TODO action items in Dora’s preferred purple bold font, which Dora can accept, edit, or reject.",
+"reasoning": "Supports step 7 by jump-starting Dora’s own thoughts and TODO entries."
+},
+{
+"name": "Priority Section Sorter",
+"tool": "A drag-and-drop interface that ranks themes by severity (e.g., number of reviews mentioning them or average score impact) and suggests an optimal order for the synthesis and rebuttal sections.",
+"reasoning": "Helps with step 8’s manual reordering based on priority."
+},
+{
+"name": "Rebuttal Progress Bot",
+"tool": "A Slack bot that listens for document state changes (e.g., creation of a new tab or draft completion) and automatically posts structured updates with links and change summaries to designated channels like #dora-advising.",
+"reasoning": "Automates the notifications in steps 8, 14, and 20, reducing manual Slack messaging."
+},
+{
+"name": "Feedback Aggregator",
+"tool": "A Google Docs add-on that compiles all comments and suggestions into a side-panel list sorted by commenter and location, allowing Dora to tick off each piece of feedback as integrated.",
+"reasoning": "Streamlines step 9 by summarizing external feedback for easier integration."
+},
+{
+"name": "Rebuttal Draft Generator",
+"tool": "An AI tool that takes Dora’s review synthesis (themes, quotes, suggested responses) and auto-formats a first-pass rebuttal draft, attributing critiques to reviewers and pairing them with draft responses and promised changes.",
+"reasoning": "Speeds up initial drafting in steps 10–11 by eliminating the blank-page barrier."
+},
+{
+"name": "Integrated Literature Search",
+"tool": "A document-embedded search pane that queries Google Scholar and the ACM DL simultaneously, filters by venue and date, and allows inline insertion of formatted citations into the rebuttal text.",
+"reasoning": "Addresses step 12’s repeated context-switching between browser searches and document editing."
+},
+{
+"name": "Overleaf Reference Fetcher",
+"tool": "A plugin that connects to Overleaf projects, lets Dora search for section, figure, or table references by keyword or label, and inserts clickable links or citation markers into the rebuttal.",
+"reasoning": "Automates step 13’s manual lookup of paper references in Overleaf."
+},
+{
+"name": "Rebuttal Version Tracker",
+"tool": "A version-control tool for Google Docs that color-codes changes by author, summarizes diffs between versions, and lets Dora revert or accept entire chunks of changes at once.",
+"reasoning": "Enhances step 15 by organizing Michael and Diyi’s suggestions and tracking Dora’s revisions."
+},
+{
+"name": "In-Doc AI Writing Assistant",
+"tool": "An embedded AI model in Google Docs that offers real-time rewriting suggestions, grammar fixes, and tone adjustments when prompted, operating on selected text or entire sections.",
+"reasoning": "Replaces the external ChatGPT step 16 and keeps Dora in the document editing flow."
+},
+{
+"name": "Reviewer Simulator",
+"tool": "An AI module trained on past UIST reviews that critiques Dora’s draft as if it were R1, R2, or 1AC, provides simulated scores and comments, and offers a metareview summary.",
+"reasoning": "Automates steps 17–18 by integrating reviewer simulation directly into the workflow."
+},
+{
+"name": "Live Word Count Monitor",
+"tool": "A sidebar widget in Google Docs that tracks word and character counts in real time, shows allotment vs. limit, and highlights sections to trim when over budget.",
+"reasoning": "Solves step 19’s manual word-count checks with dynamic alerts."
+},
+{
+"name": "One-Click Submission Automator",
+"tool": "A browser extension that, once Dora finalizes the rebuttal, copies it into the clipboard and auto-fills the conference submission form fields (including text boxes) with a single click.",
+"reasoning": "Speeds up step 20’s repetitive copy-and-paste into the submission site."
+
+]

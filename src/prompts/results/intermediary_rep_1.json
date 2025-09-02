@@ -1,0 +1,22 @@
+{
+  "widget_input": [
+    {
+      "input_type": "copied_text",
+      "input_description": "Paste the full text of all academic reviews."
+    }
+  ],
+  "widget_output": [
+    "Dashboard of grouped themes with corresponding reviewer quotes"
+  ],
+  "output_interactions": [
+    "Copy-paste the generated theme and quote groups",
+    "Click to expand/collapse details for each theme",
+    "Download or export the dashboard data"
+  ],
+  "functions": [
+    {
+      "function_type": "llm_prompt",
+      "function_input": "Analyze the provided review text by identifying recurring themes such as methodology, contribution, clarity, and any other common academic critique points. Group related quotes from the reviews under each identified theme and format the output as a dashboard with themes and corresponding quotes."
+    }
+  ]
+}
