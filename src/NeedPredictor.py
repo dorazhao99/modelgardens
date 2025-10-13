@@ -1,9 +1,10 @@
 import json
 import stat 
 from prompts import need_finder, observation_filters
-from response_formats import NeedResponse, ObservationIDResponse
-from utils import call_gpt 
+from response_formats import NeedResponse, ObservationIDResponse, ScoredNeedResponse
+from utils import call_gpt, call_gpt_logprobs
 import os 
+import random
 import numpy as np
 import orjson
 import asyncio 
@@ -18,6 +19,8 @@ load_dotenv()
 class NeedPredictor(): 
     def __init__(self, filename, user, model): 
         self.data = json.load(open(filename))
+        if isinstance(self.data, List):
+            self.data = {i['id']: i for i in self.data}
         self.user = user
         self.model = model
         self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -70,9 +73,17 @@ class NeedPredictor():
             formatted_obs = observations
         else:
             formatted_obs = '\n'.join(observations)
-        print(formatted_obs)
         input_prompt = need_finder.NEEDFINDER_PROMPT.format(user_name=self.user, input=formatted_obs)
         resp = await self._guarded_call(self.client, input_prompt, "o4-mini", resp_format=NeedResponse)
+        return resp 
+    
+    async def recognize_needs(self, observations, options):
+        if isinstance(observations, str):
+            formatted_obs = observations
+        else:
+            formatted_obs = '\n'.join(observations)
+        input_prompt = need_finder.NEED_RECOG_PROMPT.format(user_name=self.user, input=formatted_obs, statements=options)
+        resp = await call_gpt_logprobs(self.client, input_prompt, "gpt-4o")
         return resp 
     
     def apply_filter(self, nodes: List[str]) -> Dict:
@@ -83,6 +94,40 @@ class NeedPredictor():
             input.extend(retrieved)
         observations = "\n".join(input)
         return observations
+
+    async def score_needs(self, needs: List[Dict]):
+        tasks = []
+        for need in needs['needs']:
+            related_observations = need['related_observations']
+            support = []
+            for o in related_observations:
+                support.append(f"{self.data[str(o)]['description']}\nEvidence: {self.data[str(o)]['evidence']}")
+
+            # Randomly sample other observations from self.data that are not in related_observations
+            all_obs_ids = set(self.data.keys())
+            related_obs_ids = set(str(o) for o in related_observations)
+            other_obs_ids = list(all_obs_ids - related_obs_ids)
+            # Sample up to 3 other observations (or fewer if not enough)
+            num_samples = min(10, len(other_obs_ids))
+            sampled_other_obs = random.sample(other_obs_ids, num_samples) if num_samples > 0 else []
+            for o in sampled_other_obs:
+                support.append(f"{self.data[o]['description']}\nEvidence: {self.data[o]['evidence']}")
+            random.shuffle(support)
+
+            fmt_support = "\n".join(support)
+            input_prompt = need_finder.SCORE_NEEDS_PROMPT.format(need=need['need'], observations=fmt_support)
+            print(input_prompt)
+            tasks.append(self._guarded_call(self.client, input_prompt, "gpt-4o", resp_format=ScoredNeedResponse))
+        resps = await asyncio.gather(*tasks, return_exceptions=True) 
+        scored_needs = []
+
+        for r, need in zip(resps, needs['needs']):
+            output = need
+            output['importance'] = r.importance
+            output['surprise'] = r.surprise
+            output['score_rationale'] = r.reasoning
+            scored_needs.append(output)
+        return scored_needs
 
 # Selection filters
 def most_general(graph: Dict): 
@@ -103,6 +148,12 @@ def get_all_with_merged(graph: Dict):
     Returns a list of node IDs that have a non-empty 'merged' field.
     """
     return [nid for nid, node in graph.items() if node.get("merged")]
+
+def get_all_nodes(graph: Dict):
+    """
+    Returns a list of all node IDs
+    """
+    return list(graph.keys())
 
 
 def get_orphans(graph: Dict): 
@@ -141,10 +192,13 @@ def apply_filter(filter_name: str, idx: str, thresh: int) -> List:
     return filtered_options
 
 
-async def main(filter_name:str, method:str, dataset:str, model:str, aggregation:int, strategy: str):
+
+
+async def main(filter_name:str, method:str, stem:str, model:str, aggregation:int, strategy: str, user:str):
     # filename = f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/results/text_summary_gpt-4o_gum_reflect/{idx}_observe_o3.json"
-    filename = f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/results/{method}/{dataset}_{model}.json"
-    need_p = NeedPredictor(filename, "Dora", model)
+    filename = f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/results/{method}/{stem}.json"
+    # filename = f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/perturbations/7_shuffled.json"
+    need_p = NeedPredictor(filename, user, model)
     # observation = need_p.bfs("42", count=1)
     if filter_name == "general":
         nodes = most_general(need_p.data)
@@ -154,6 +208,9 @@ async def main(filter_name:str, method:str, dataset:str, model:str, aggregation:
         nodes = get_orphans(need_p.data)
     elif filter_name == "merged":
         nodes = get_all_with_merged(need_p.data)
+    elif filter_name == "all":
+        nodes = get_all_nodes(need_p.data)
+
 
     tasks = []
     print(nodes)
@@ -214,19 +271,30 @@ async def main(filter_name:str, method:str, dataset:str, model:str, aggregation:
         observations = []
         for node in nodes:
             observations.append(need_p.format_observation(need_p.data[node]))
-        output = await need_p.generate_needs(observations)
-        output = output.model_dump()
-    print(output)
-    out_path = f'results/needs/perturbations/3_{method}_{filter_name}_{model}_{aggregation}.json'
-    with open(out_path, "wb") as f:
-        f.write(orjson.dumps(output, option=orjson.OPT_INDENT_2))
+        print(observations)
+    #     output = await need_p.generate_needs(observations)
+    #     output = output.model_dump()
+    # print(output)
+    # updated_output = await need_p.score_needs(output)
+    # out_path = f'results/needs/{stem}_{method}_{model}.json'
+    # with open(out_path, "wb") as f:
+    #     f.write(orjson.dumps(updated_output, option=orjson.OPT_INDENT_2))
 
 
 if __name__ == "__main__":
+    random.seed(0)
     filter_name = "merged"
-    dataset = "perturbation_3"
-    method = "llm_pipeline"
-    model = "o4-mini"
+    method = "tooleval"
+    model = "o3"
+    user="Dora"
     aggregation = 1
     strategy = ""
-    asyncio.run(main(filter_name, method, dataset, model, aggregation, strategy))
+    for i in ['41']:
+        # if i == "_interview_o4-mini_20250918.json":
+        # stem = i.split(".")[0]
+        # stem = f"{i}_interview_o4-mini_20250918"
+        stem = f"{i}_o4-mini_20251007"
+        print(stem)
+        asyncio.run(main(filter_name, method, stem, model, aggregation, strategy, user))
+    # stem = "0_interview_o4-mini_20250917_120305"
+    # asyncio.run(main(filter_name, method, stem, model, aggregation, strategy, user))

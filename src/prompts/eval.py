@@ -1,6 +1,6 @@
 NEEDS_JUDGE = """
 You are a careful judge of *user needs*.
-Given a ground-truth need (GT) and a set of proposed needs, classify if two needs are similar or not. Be conservative in your judgement. 
+Given two needs, classify whether they are similar or not. 
 
 Return 1 if YES they are meaningfully similar or 0 if NO. 
 
@@ -69,5 +69,18 @@ Return the output as JSON with the following format:
     "need_type": "common" | "context" | "activity" | "qualifier",
     "rationale": "Explanation for why the need type was selected"
 }}
+"""
+
+ARMCHAIR_JUDGE = """
+You are a careful judge of *user needs*.
+Given a candidate statement and a set of existing statements, classify whether the candidate statement is similar to any of the existing statements. 
+
+Return 1 if the existing statements cover the candidate statement or 0 if NO. 
+
+Candidate: {gt}
+Existing Statements:
+{armchair}
+
+Return only 1 or 0 and nothing else. 
 """
 

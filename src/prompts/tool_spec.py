@@ -62,12 +62,54 @@ PATTERN_INDUCTION_JSON_SCHEMA = {
                     "description",
                     "input_type",
                     "output_type",
+                    
                 ],
             },
+        },
+        "reasoning": {
+            "type": "str",
+            "description": "Reasoning as to how this solution meets the user's needs",
         }
     },
-    "required": ["patterns"],
+    "required": ["patterns", "reasoning"],
 }
+
+
+GOAL_INDUCTION_PROMPT = """
+I have the following CONTEXT that a current user is working on:
+
+CONTEXT:
+{context}
+
+Now, employ the following reasoning framework when inferring the goals.
+
+0. If there is an attached screenshot, use context clues to infer what application the user is viewing and what they might be doing in that application. Are they the direct author of the text, or are they viewing it as a reader? Are they actively editing the text, providing feedback, or synthesizing the content?
+
+1. Identify the genre of what the user is working on and their stage of completion. Map the content's genre and completion stage to common goals users of these genres and stages may have, and form an initial hypothesis of what the user's goals may be.
+
+2. Infer who the intended audience of the content is. Based on how you think the user wants their audience to receive their content, update your goal hypothesis.
+
+3. Think about what an ideal version of the user's current content would look like and identify what is missing. Then, use this to update your goal hypothesis.
+
+4. Simulate what the user's reaction would be to possible tools generated (e.g., grammar checker, style reviser, high-level structure advisor, new content generator, etc.). Use the user's responses to update your goal hypothesis.
+
+For each step in your reasoning, briefly write out your thought process, your current hypothesis of the goals as a numbered list, and what the updated list would be after your reasoning.
+
+After you are done, finalize the {limit} most important goals. Make sure these goals are distinct and have minimal overlap.
+
+Please respond ONLY with a JSON that matches the following json schema, including your reasoning and the new goals along with their relative weight (1–10). The weight is the estimated *importance* of the goal to the user, based on the provided context (1 = not important, 5 = moderately important, 10 = very important).
+
+{{
+    "goals": [
+        {{
+            "goal": [Insert the name of the goal],
+            "description": [Insert a 1-2 sentence description of the goal],
+            "weight": [Insert the weight of the goal (1-10)],
+            "reasoning": [Insert a 1-2 sentence reasoning for the goal],
+        }}
+    ]
+}}
+""" 
 
 TOOL_PROMPT = """
 You are a helpful assistant tasked with generating tools to support a user's tasks.
@@ -87,7 +129,7 @@ Below is a description of the user's goal:
 
 # Task
 
-Generate **5 distinct, well-supported tools** that can support Dora in her task. 
+Generate **{limit} distinct, well-supported tools** that can support {user} in their task. 
 
 Return your results in this exact JSON format:
 
@@ -182,43 +224,62 @@ Please respond ONLY with a JSON that matches the following json_schema:
 """
 
 
-PATTERN_INDUCTION_PROMPT = """I have the following CONTEXT for creating a helpful tool:
+PATTERN_INDUCTION_PROMPT = """
+I have the following CONTEXT and GOALS for creating a helpful tool :
 
 CONTEXT:
 {context}
 
-PREP WORK:
-1. Based on the user CONTEXT, what are some norms and domain knowledge unique to the genre and content they are working on? 
-2. A workflow is defined as a solution to a user need that can be instantiated in many different ways; it behaves like a function, taking in some input, performs some work, and returns some output. Drawing on specialized domain knowledge from the genre and content of what the user is working on, what would be some workflows that would be most helpful to fulfill the user's GOALS? 
+GOALS:
+{goals}
 
-Taking into account the PREP WORK, what {limit} design patterns would be most helpful for accomplishing the user's GOALS?
+What {limit} design patterns would be most helpful for accomplishing {user}'s GOALS?
 
 Ideal tools are intuitive, easy to use, and generally have a single-step interaction with the user.
 
 Please respond ONLY with a JSON that matches the following json_schema:
 {json_schema}
+"""
 
-DO NOT INCLUDE ANY OTHER TEXT IN YOUR RESPONSE."""
-
-PATTERN_INDUCTION_PROMPT_NEEDS = """I have the following CONTEXT and USER NEEDS for creating a helpful tool:
+PATTERN_INDUCTION_PROMPT_NEEDS = """
+I have the following CONTEXT, GOALS, and NEEDS for creating a helpful tool :
 
 CONTEXT:
 {context}
 
-USER NEEDS:
+GOALS:
+{goals}
+
+Based on the user need-finding you have conducted, you find that {user} has the following long-term needs:
 {needs}
 
-PREP WORK:
-1. Based on the user CONTEXT, what are some norms and domain knowledge unique to the genre and content they are working on? 
-2. Based on the USER NEEDS, what are some specific user needs that are most important to fulfill?
-3. A workflow is defined as a solution to a user need that can be instantiated in many different ways; it behaves like a function, taking in some input, performs some work, and returns some output. Drawing on specialized domain knowledge from the genre and content of what the user is working on, what would be some workflows that would be most helpful to fulfill the user's GOALS? 
+What {limit} design patterns would be most helpful for accomplishing the user's GOALS while adhering to the user's long-term needs?
 
-Taking into account the PREP WORK, what {limit} design patterns would be most helpful for accomplishing the user's GOALS?
-
-Ideal tools are intuitive, easy to use, and generally have a 
-single-step interaction with the user.
+Ideal tools are intuitive, easy to use, and generally have a single-step interaction with the user.
 
 Please respond ONLY with a JSON that matches the following json_schema:
 {json_schema}
+"""
 
-DO NOT INCLUDE ANY OTHER TEXT IN YOUR RESPONSE."""
+PATTERN_JUDGE = """
+You are given a design pattern and a user's need. Decide whether the design pattern is a good fit for the user's need.
+
+Be careful to not over-generalize the design pattern to the user's needs.
+
+Design Pattern:
+{design_pattern}
+
+User Need:
+{user_need}
+
+Label the pattern either as -1, 0, or 1. 
+-1: The design pattern CONTRADICTS ONE or MORE of the needs.
+0: The design pattern is UNRELATED to the user's needs.
+1: The design pattern MEETS user's needs.
+
+Return the following JSON:
+{{
+    "response": [-1, 0, 1],
+    "reasoning": 1-2 sentence rationale explaining the judgement,
+}}
+"""

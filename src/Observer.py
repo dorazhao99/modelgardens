@@ -1,8 +1,9 @@
 from ast import Dict
+from math import e
 import os
 import random
 import hdbscan
-
+import pdb
 import asyncio
 import json
 import argparse
@@ -15,7 +16,7 @@ import orjson
 from utils import call_gpt, get_openai_embeddings
 from openai import AsyncOpenAI, OpenAI
 from prompts import need_finder, reflection_module, observer, gum, test_dataset
-from response_formats import RelationsResponse, ObservationResponse, ClusterResponse
+from response_formats import RelationsResponse, InsightResponse, ClusterResponse, CohesionResponse, DuplicateResponse, GeneralJudge
 from dotenv import load_dotenv
 from BM25 import BM25NeedsIndex
 from EmbeddingStore import EmbeddingsStore
@@ -32,17 +33,14 @@ class Observer():
         self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.sync_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.sim_threshold = 0.8
-        st_model = "all-MiniLM-L6-v2"
         self.embed_store = EmbeddingsStore(
-            st_model_name=st_model,
+            st_model_name="all-MiniLM-L6-v2",
             sim_threshold=self.sim_threshold,
             device="cpu",
             ann_max=int(os.getenv("ANN_MAX_ELEMENTS", "200000"))
         )
-        self.already_merged = set([])
         # Speed/quality knobs
         self.need_index = BM25NeedsIndex({})
-        
         self.prompt2name = {
             'baseline': need_finder.BASELINE_PROMPT,
             'baseline_image': need_finder.BASELINE_IMAGE_PROMPT,
@@ -51,16 +49,9 @@ class Observer():
             'text_image': need_finder.NEEDFINDING_TEXT_IMAGE_PROMPT
         }
         self.all_needs = {}
-        self.final_needs = []
-        self.tokenizer = lambda text: re.findall(r"\w+", text.lower())
-
-        # Async control
         self._sem = asyncio.Semaphore(int(os.getenv("LLM_CONCURRENCY", "16")))
+        self.timestamp = time.strftime("%Y%m%d")
 
-    @staticmethod
-    def _load_markdown(filepath):
-        with open(filepath, "r", encoding="utf-8") as f:
-            return f.read()
 
     def _query_text(self, q):
         if isinstance(q, dict):
@@ -96,209 +87,7 @@ class Observer():
                 self.count += 1
         return output 
     
-    def _get_actions(self, fnames):
-        actions = []
-        for idx, fname in enumerate(fnames):
-            actions.append(f"{idx + 1}.")
-            actions.append("Transcription of what is on the user's screen:")
-            actions.append(Observer._load_markdown(f'/Users/dorazhao/Documents/modelgardens/src/infact_dataset/transcripts/40/{fname}'))
-            actions.append("Summary of actions:")
-            actions.append(Observer._load_markdown(f'/Users/dorazhao/Documents/modelgardens/src/infact_dataset/summaries/40/{fname}'))
-        actions = '\n'.join(actions)
-        return actions 
-
-    def _handle_identical(self, new_obs:dict, targets: list[str]):
-        new_evidence = new_obs['evidence']
-        # add new source's evidence to existing propisitions
-        for tid_ in targets:
-            tid_ = str(tid_)
-            tgt = self.all_needs[tid_]
-            self.all_needs[tid_]['evidence'].extend(new_evidence)
-
-    def _handle_different(self, new_obs:dict, description_only:str):
-        if not self._exists_id(new_obs["id"]):
-            self.all_needs[new_obs['id']] = new_obs
-            self.need_index.add_needs([(new_obs["id"], description_only)])
-        return 
     
-    def _handle_similar(self, new_obs: dict, source: str, targets: list[str]):
-        parts = []
-        max_generality = 0
-        if not self._exists_id(source):
-            self.all_needs[source] = new_obs
-            src_item = new_obs
-        else:
-            src_item = self.all_needs.get(source)
-
-        if src_item:
-            evidence = ' '.join(src_item['evidence'])
-            if src_item['generality'] > max_generality:
-                max_generality = src_item['generality']
-            parts.append(f"ID: {src_item['id']} | {src_item['description']}: {evidence} | Generality: {src_item['generality']}")
-
-        for tid_ in targets:
-            tgt = self.all_needs.get(tid_)
-            if tgt:
-                evidence = ' '.join(tgt['evidence'])
-                if tgt['generality'] > max_generality:
-                    max_generality = tgt['generality']
-                parts.append(f"ID: {tgt['id']} | {tgt['description']}: {evidence} | Generality: {tgt['generality']}")
-                
-        if parts:
-            formatted = "\n".join(parts)
-            if max_generality >= 6:
-                merge_prompt = observer.FEEL_PROMPT.format(body=formatted)
-                print(merge_prompt)
-            else:
-                merge_prompt = observer.SIMPLIFIED_REVISE_PROMPT.format(body=formatted)
-            return merge_prompt
-        else:
-            return None
-    
-    async def observer_pipeline(self, input_dir):
-        prompt = observer.OBSERVE_PROMPT
-
-        files = sorted(
-            [f for f in os.listdir(input_dir) if f.endswith(".md")],
-            key=lambda x: int(os.path.splitext(x)[0]) if os.path.splitext(x)[0].isdigit() else x
-        )
-
-        window_size = 5
-        to_check = []
-        print("Observer Pipeline", len(files))
-        for index in range(0, len(files), 5):
-            try:
-                fnames = files[index: index + window_size]
-                start_file = fnames[0]
-                tid = os.path.splitext(start_file)[0]
-                iter_t0 = time.perf_counter()
-                # try:
-                # ----- Load and propose -----
-                actions = self._get_actions(fnames)
-                input_prompt = prompt.format(body=actions)
-                new_needs = await self._guarded_call(self.client, input_prompt, self.model, resp_format=ObservationResponse)
-
-                # ----- Assemble candidates -----
-                cand_items = []
-                
-                for prop in new_needs.observations:
-                    nid = f"{self.count}"
-                    item = {"id": nid, "description": prop.description, "evidence": [prop.evidence], "generality": prop.generality}
-                    self.count += 1
-                    cand_items.append(item)
-                
-                # ----- Batch embed + ANN pre-filter -----
-                desc_only = [f"{c['description']}" for c in cand_items]
-                vecs = self.embed_store.encode(desc_only, batch_size=int(os.getenv("EMB_BATCH", "256")))
-                keep_mask = self.embed_store.batch_add_if_new([c["id"] for c in cand_items], vecs)
-                kept = int(np.sum(keep_mask)) if len(keep_mask) else 0
-                print(f"[{tid}] kept {kept}/{len(cand_items)}")
-
-                # Prepare survivors but DO NOT add to BM25 yet
-                survivors = [(c, do) for keep, c, do in zip(keep_mask, cand_items, desc_only) if keep]
-                if not survivors:
-                    print(f"[{tid}] skip: all proposed needs failed ANN threshold")
-                    continue
-
-                if len(self.need_index.needs) == 0:
-                    for c, t in survivors:
-                        nid = c['id']
-                        self.all_needs[nid] = c
-                        self.need_index.add_needs([(nid, t)])
-                else:
-                    for new_obs, do in survivors:
-                        # --- (a) BM25 retrieval body for THIS survivor only (no self in index yet) ---
-                        input = f"ID: {new_obs['id']} | {new_obs['description']}"
-                        retrieved = self._search_bm25(do, top_k=3) # use description only to search for retrieved
-                        existing = []
-                        for r in retrieved:
-                            existing.append(f"ID: {r['id']} | {r['description']}")
-
-                        classifier_prompt = observer.SIMILAR_PROMPT.format(new=input, existing=existing)
-                        # print(classifier_prompt)
-                        resp = await self._guarded_call(self.client, classifier_prompt, self.model, resp_format=RelationsResponse)
-                        print('Relations', resp)
-
-                        to_merge_ids = []
-                        merge_tasks = []
-                        relation = resp.relations
-                        label = relation.score
-                        s, t_targets = str(relation.source), relation.target
-                        t_ids = [str(x) for x in (t_targets if isinstance(t_targets, list) else [t_targets])]
-
-                        if label < 7:
-                            self._handle_different(new_obs, do) 
-                        elif label >= 7:
-                            if t_targets:
-                                self._handle_identical(new_obs, t_targets)
-                        # else:
-                        #     mids = sorted(list(set([s] + t_ids)))
-                        #     to_merge = "-".join(mids)
-                        #     if to_merge in self.already_merged:
-                        #         continue
-
-                        #     merge_prompt = self._handle_similar(new_obs, s, t_ids)
-                            
-                        #     if merge_prompt is not None:
-                        #         merge_tasks.append(
-                        #             self._guarded_call(self.client, merge_prompt, "o3", resp_format=ObservationResponse)
-                        #         )
-                        #         self.already_merged.add(to_merge)
-                        #         to_merge_ids.append(mids)
-
-                        #     merged_needs = []
-                        #     if merge_tasks:
-                        #         merged_needs = await asyncio.gather(*merge_tasks, return_exceptions=True)
-
-                        #     merges_added = 0
-                        #     for midx, merge_res in enumerate(merged_needs):
-                        #         if isinstance(merge_res, Exception) or merge_res is None:
-                        #             continue
-                        #         gid = uuid.uuid4()
-                        #         merged_ids = to_merge_ids[midx]
-                        #         for mn in merge_res.observations:
-                        #             nid = f"{self.count}"
-                        #             generality = mn.generality 
-                        #             vec = self.embed_store.encode([mn.description])[0]
-
-                        #             is_general = True
-                        #             # Check generality --> only add if generality is greater than targets
-                        #             for mid in merged_ids:
-                        #                 merged_obs = self.all_needs[mid]
-                        #                 if merged_obs["generality"] > generality: 
-                        #                     is_general = False 
-                        #                     print("Discarded", merged_obs, mn.description)
-                        #             if self.embed_store.add_if_new(nid, vec) and is_general:
-                        #                 item = {
-                        #                     "id": nid,
-                        #                     "description": mn.description,
-                        #                     "evidence": [mn.evidence],
-                        #                     "merged": merged_ids,
-                        #                     "generality": generality,
-                        #                     "group_id": gid
-                        #                 }
-
-                        #                 self.all_needs[nid] = item
-                        #                 self.need_index.add_needs([(nid, mn.description)])
-                        #                 self.count += 1
-                        #                 merges_added += 1
-
-                                            # REMOVE FROM BM-25
-                                            # for merged_id in merged_ids:
-                                            #     self.need_index.remove_need(merged_id)
-            except Exception as e:
-                print(f"[{tid}] ERROR: {e}")
-            
-            out_path = "/Users/dorazhao/Documents/modelgardens/src/infact_dataset/results/text_summary_gpt-4o_gum_reflect/40_granular.json"
-            with open(out_path, "wb") as f:
-                f.write(orjson.dumps(self.all_needs, option=orjson.OPT_INDENT_2))
-            # out_path = "/Users/dorazhao/Documents/modelgardens/src/infact_dataset/results/text_summary_gpt-4o_gum_reflect/41_prompts_o3.json"
-            # with open(out_path, "wb") as f:
-            #     f.write(orjson.dumps(to_check, option=orjson.OPT_INDENT_2))
-            print(f"[{tid}] done. total_needs={len(self.all_needs)} | iter={time.perf_counter()-iter_t0:.2f}s")
-            # if int(tid) >= 100:
-            #     break
-        return self.all_needs
     
     def _format_observations(self, observations: List[dict]) -> str:
         output = []
@@ -306,7 +95,7 @@ class Observer():
             if 'text' in o:
                 output.append(f"ID {o['id']} | {o['text']}")
             else: 
-                output.append(f"ID {o['id']} | {o['description']} Evidence:{o['evidence']}")
+                output.append(f"ID {o['id']} | {o['description']}\nEvidence: {' '.join(o['evidence'])}")
         return "\n".join(output)
            
 
@@ -333,7 +122,312 @@ class Observer():
 
         return list(clusters.values())
 
-    async def llm_pipeline(self, observations: List[dict], num_iterations: int = 10, seed: List[str] =[]) -> Dict:
+    async def cluster_observations(self, observations: List[dict], seed: List[str] = [], existing_clusters: List[dict] = []) -> List[dict]:
+        fmt_observations = self._format_observations(observations)
+        if len(seed) > 0:
+            prompt = observer.LLM_CLUSTER_PROMPT_SEED.format(observations=fmt_observations, seed=seed, user_name=self.name)
+        else:
+            if len(existing_clusters) > 0:
+                fmt_existing = [f"Cluster {i +1}: {c['description']}\nMerged IDs: {', '.join(c['merged'])}" for i, c in enumerate(existing_clusters)]
+                fmt_existing = "\n".join(fmt_existing)
+                prompt = observer.LLM_CLUSTER_PROMPT_UPDATE.format(observations=fmt_observations, existing_clusters=fmt_existing, user_name=self.name)
+            else:
+                prompt = observer.LLM_CLUSTER_PROMPT.format(observations=fmt_observations, user_name=self.name)
+        resp = await self._guarded_call(self.client, prompt, self.model, resp_format=ClusterResponse) 
+        clusters = resp.clusters
+        return clusters 
+        
+    async def get_insights(self, clusters: List[dict], output_observations: Dict) -> List[dict]:
+        tasks = []
+        for cluster in clusters:
+            members = [output_observations[str(member)] for member in cluster.members]
+            fmt_observations = self._format_observations(members)
+            prompt = observer.LLM_INSIGHT_PROMPT.format(observations=fmt_observations, reasoning=cluster.evidence)
+            tasks.append(self._guarded_call(self.client, prompt, "gpt-5", resp_format=InsightResponse))
+        resps = await asyncio.gather(*tasks, return_exceptions=True)
+        return resps
+
+    def format_insights(self, insights: List[dict]) -> str:
+        return "\n".join([f"ID {i['id']}: {i['description']}\nEvidence: {i['evidence']}" for i in insights])
+    
+    async def label_interesting(self, insights: List[dict]) -> List[dict]:
+        tasks = []
+        for insight in insights:
+            new_insight = f"{insight['description']}\nEvidence: {insight['evidence']}"
+            prompt = observer.JUDGE_INTERESTING_PROMPT.format(new_insight=new_insight)
+            tasks.append(self._guarded_call(self.client, prompt, "gpt-5", resp_format=GeneralJudge))
+        resps = await asyncio.gather(*tasks, return_exceptions=True)
+        return resps
+
+    async def llm_pipeline_alt(self, fidx: str, observations: List[dict] | Dict, num_iterations: int = 5, seed: List[str] =[]) -> Dict:
+        def save_file(output_observations):
+            if len(seed) > 0:
+                out_path = f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/results/llm_pipeline_alt/{fidx}_{self.model}_seed.json"
+            else:
+                out_path = f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/results/llm_pipeline_alt/{fidx}_{self.model}_{self.timestamp}.json"
+            data = {str(k): v for k, v in output_observations.items()}
+            with open(out_path, "wb") as f:
+                f.write(orjson.dumps(data, option=orjson.OPT_INDENT_2))
+
+        np.random.seed(0)
+        output_observations = {}
+        max_id = 0
+
+        # For test dataset, insert existing granular observations into the output
+        if isinstance(observations, dict):
+            observations = list(observations.values())
+
+        for o in observations:
+            evidence = o['evidence']
+            if 'text' in o:
+                description = o['text']
+            else:
+                description = o['description']
+            output_observations[str(o['id'])] = {
+                'id': str(o['id']),
+                'description': description,
+                'evidence': evidence
+            }
+            max_id = max(max_id, int(o['id']))
+
+            
+        count = 0
+        
+        uncovered_ids = set([str(o['id']) for o in observations])
+        all_ids = set([str(o['id']) for o in observations])
+        
+        insights = []
+        is_saturated = False
+
+        while(count < num_iterations and not is_saturated):
+            tasks = []
+            clusters = await self.cluster_observations(observations, seed, existing_clusters=insights)
+            for cluster in clusters:
+                members = [output_observations[str(member)] for member in cluster.members if str(member) in output_observations]
+                fmt_members = self._format_observations(members)
+                prompt = observer.LLM_INSIGHT_PROMPT.format(observations=fmt_members, reasoning=cluster.evidence)
+                tasks.append(self._guarded_call(self.client, prompt, self.model, resp_format=InsightResponse))
+            resps = await asyncio.gather(*tasks, return_exceptions=True)
+            new_observations = []
+
+            # Judge Cohesion
+            cohesion_tasks = []
+            duplicate_tasks = []
+            for i, r in enumerate(resps):
+                for observation in r.observations:
+                    cluster_members = clusters[i].members
+                    merged_obs = [output_observations[str(x)] for x in cluster_members if str(x) in output_observations]
+                    input_obs = [x['description'] for x in merged_obs]
+                    cohesion_prompt = observer.JUDGE_COHESION_PROMPT.format(observations='\n'.join(input_obs), grouping=observation.description)
+                    cohesion_tasks.append(self._guarded_call(self.client, cohesion_prompt, "gpt-5", resp_format=CohesionResponse))
+                    
+                    if len(insights) > 0:
+                        fmt_insights = self.format_insights(insights)
+                        duplicate_prompt = observer.JUDGE_DUPLICATE_PROMPT.format(new_insight=observation.description, existing_insights=fmt_insights)
+                        duplicate_tasks.append(self._guarded_call(self.client, duplicate_prompt, "gpt-5", resp_format=DuplicateResponse))
+
+            cohesion_resps = await asyncio.gather(*cohesion_tasks, return_exceptions=True)
+            duplicate_resps = await asyncio.gather(*duplicate_tasks, return_exceptions=True)
+
+            # SAVE OBSERVATIONS
+            num_duplicates = 0
+            total_observations = 0
+
+            for i, r in enumerate(resps):
+                for observation in r.observations:
+                    cluster_members = clusters[i].members
+                    merged_obs = [output_observations[str(x)] for x in cluster_members if str(x) in output_observations]
+                    cohesion = cohesion_resps[i].cohesion
+                    confidence = cohesion_resps[i].confidence
+
+                    if len(insights) > 0:
+                        is_duplicate = duplicate_resps[i].judgement
+                    else:
+                        is_duplicate = False
+
+                    if len(cluster_members) <= 1:
+                        break 
+
+                    if cohesion < 6:
+                        print("Discarded Cohesion", observation.description, merged_obs)
+                        break 
+                    
+                    total_observations += 1
+                    if is_duplicate: 
+                        print("Discarded Duplicate", observation.description, merged_obs)
+                        num_duplicates += 1
+                        dup_id = str(duplicate_resps[i].id)
+                        if dup_id in output_observations:
+                            output_observations[dup_id]['evidence'].append(observation.evidence)
+                            if 'merged' in output_observations[dup_id]:
+                                existing_ids = set(output_observations[dup_id]['merged'])
+                            else:
+                                existing_ids = set()
+                            new_ids = set([str(x) for x in cluster_members])
+                            output_observations[dup_id]['merged'] = list(existing_ids.union(new_ids))
+                        else:
+                            print("Duplicate not found", dup_id)
+                        # Add relevant ids to duplicate observation 
+                    else:
+                        obs = {
+                            'id': str(max_id + 1),
+                            'description': observation.description,
+                            'cohesion': cohesion,
+                            'confidence': confidence,
+                            'evidence': [observation.evidence],
+                            'merged': [str(x) for x in cluster_members]
+                        }
+
+                        for m in cluster_members:
+                            if str(m) in uncovered_ids:
+                                uncovered_ids.remove(str(m))
+
+                        all_ids.add(obs['id'])
+                        output_observations[obs['id']] = obs
+                        new_observations.append(obs)
+                        max_id += 1
+
+            # duplicate ratio 
+            dup_ratio = num_duplicates / total_observations
+            print("Duplicate ratio", dup_ratio)
+            if dup_ratio > 0.8:
+                is_saturated = True
+                print("Saturated due to duplicate ratio", dup_ratio)
+
+            observations.extend(new_observations)
+            insights.extend(new_observations)
+            np.random.shuffle(observations) 
+
+            save_file(output_observations)
+            print(f"Iteration: {count} | Next Level: {len(observations)}")
+            count += 1
+
+        print("Insights")
+        interesting_resps = await self.label_interesting(insights)
+        for insight, resp in zip(insights, interesting_resps):
+            iid = insight['id']
+            output_observations[iid]['interesting'] = resp.judgement
+            output_observations[iid]['reasoning'] = resp.reason
+        save_file(output_observations)
+        return output_observations
+
+    async def llm_pipeline(self, fidx: str, observations: List[dict] | Dict, num_iterations: int = 10, seed: List[str] =[]) -> Dict:
+        output_observations = {}
+        max_id = 0
+
+        # For test dataset, insert existing granular observations into the output
+        if isinstance(observations, dict):
+            observations = list(observations.values())
+
+        for o in observations:
+            if 'generality' in o:
+                generality = o['generality']
+                evidence = o['evidence'] 
+            else:
+                generality = 0
+                evidence = o['evidence']
+            if 'text' in o:
+                description = o['text']
+            else:
+                description = o['description']
+            output_observations[str(o['id'])] = {
+                'id': str(o['id']),
+                'description': description,
+                'generality': generality, 
+                'evidence': evidence
+            }
+            max_id = max(max_id, int(o['id']))
+
+            
+        count = 0
+        
+        uncovered_ids = set([str(o['id']) for o in observations])
+        all_ids = set([str(o['id']) for o in observations])
+        
+        while(len(observations) >= 2 and count < num_iterations):
+            tasks = []
+            clusters = await self.cluster_observations(observations, seed)
+            for cluster in clusters:
+                members = [output_observations[str(member)] for member in cluster.members if str(member) in output_observations]
+                fmt_members = self._format_observations(members)
+                prompt = observer.LLM_INSIGHT_PROMPT.format(observations=fmt_members, reasoning=cluster.evidence)
+                tasks.append(self._guarded_call(self.client, prompt, self.model, resp_format=InsightResponse))
+            resps = await asyncio.gather(*tasks, return_exceptions=True)
+            new_observations = []
+
+            # Judge Cohesion
+            cohesion_tasks = []
+            for i, r in enumerate(resps):
+                for observation in r.observations:
+                    cluster_members = clusters[i].members
+                    merged_obs = [output_observations[str(x)] for x in cluster_members if str(x) in output_observations]
+                    input_obs = [x['description'] for x in merged_obs]
+                    cohesion_prompt = observer.JUDGE_COHESION_PROMPT.format(observations='\n'.join(input_obs), grouping=observation.description)
+                    cohesion_tasks.append(self._guarded_call(self.client, cohesion_prompt, "gpt-4o", resp_format=CohesionResponse))
+            cohesion_resps = await asyncio.gather(*cohesion_tasks, return_exceptions=True)
+
+            # SAVE OBSERVATIONS
+            for i, r in enumerate(resps):
+                for observation in r.observations:
+                    cluster_members = clusters[i].members
+                    merged_obs = [output_observations[str(x)] for x in cluster_members if str(x) in output_observations]
+                    cohesion = cohesion_resps[i].cohesion
+
+                    if cohesion < 6:
+                        print("Discarded Cohesion", observation.description, merged_obs)
+                        break
+
+                    is_general = True
+                    
+                    
+                    generality = observation.generality
+                    for m in merged_obs:
+                        if 'generality' in m and m["generality"] > generality: 
+                            is_general = False 
+                            print("Discarded Generality", m)
+                            break
+
+                    if is_general and len(cluster_members) > 1:
+                        obs = {
+                            'id': str(max_id + 1),
+                            'description': observation.description,
+                            'generality': observation.generality,
+                            'cohesion': cohesion,
+                            'evidence': [observation.evidence],
+                            'merged': [str(x) for x in cluster_members]
+                        }
+                        for m in cluster_members:
+                            if str(m) in uncovered_ids:
+                                uncovered_ids.remove(str(m))
+
+                        all_ids.add(obs['id'])
+                        output_observations[obs['id']] = obs
+                        new_observations.append(obs)
+                        uncovered_ids.add(obs['id'])
+                        max_id += 1
+            next_rounds_observations = []
+            print(uncovered_ids)
+            for o in observations:
+                if str(o['id']) in uncovered_ids:
+                    next_rounds_observations.append(o)
+            next_rounds_observations.extend(new_observations)
+            observations = next_rounds_observations
+            if len(seed) > 0:
+                out_path = f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/results/llm_pipeline/{fidx}_{self.model}_seed.json"
+            else:
+                out_path = f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/results/llm_pipeline/{fidx}_{self.model}_{self.timestamp}.json"
+                # out_path = f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/results/llm_pipeline/{self.entry}_{self.model}_{self.timestamp}.json"
+            data = {str(k): v for k, v in output_observations.items()}
+
+            with open(out_path, "wb") as f:
+                f.write(orjson.dumps(data, option=orjson.OPT_INDENT_2))
+            print(f"Iteration: {count} | Next Level: {len(observations)}")
+            count += 1
+        return output_observations
+
+
+    
+    async def cluster_pipeline(self, observations: List[dict], num_iterations: int = 10, seed: List[str] =[]) -> Dict:
         output_observations = {}
         max_id = 0
 
@@ -356,78 +450,21 @@ class Observer():
                 'evidence': evidence
             }
             max_id = max(max_id, int(o['id']))
-        count = 0
         
-        uncovered_ids = set([str(o['id']) for o in observations])
-        while(len(observations) >= 2 and count < num_iterations):
-            fmt_observations = self._format_observations(observations)
-            if len(seed) > 0:
-                prompt = observer.LLM_CLUSTER_PROMPT_SEED.format(observations=fmt_observations, seed=seed)
-            else:
-                prompt = observer.LLM_CLUSTER_PROMPT.format(observations=fmt_observations)
-            resp = await self._guarded_call(self.client, prompt, self.model, resp_format=ClusterResponse) 
-            print(resp)
-            tasks = []
-            clusters = resp.clusters
-
-            # CLUSTER RESPONSES 
-            for cluster in clusters:
-                members = [output_observations[str(member)] for member in cluster.members]
-                for m in members:
-                    if str(m['id']) in uncovered_ids:
-                        uncovered_ids.remove(str(m['id']))
-                fmt_members = self._format_observations(members)
-                prompt = observer.LLM_INSIGHT_PROMPT.format(observations=fmt_members, reasoning=cluster.evidence)
-                tasks.append(self._guarded_call(self.client, prompt, self.model, resp_format=ObservationResponse))
-            resps = await asyncio.gather(*tasks, return_exceptions=True)
-            print(resps)
-            new_observations = []
-            # SAVE OBSERVATIONS
-            for i, r in enumerate(resps):
-                for observation in r.observations:
-                    cluster_members = clusters[i].members
-                    merged_obs = [output_observations[str(x)] for x in cluster_members]
-                    cohesion = observation.cohesion
-                    generality = observation.generality
-                    is_general, is_cohesive = True, True
-
-                    for m in merged_obs:
-                        if 'generality' in m and m["generality"] > generality: 
-                            is_general = False 
-                            print("Discarded Generality", m)
-                            break
-                        if 'cohesion' in m and m["cohesion"] < cohesion:
-                            is_cohesive = False 
-                            print("Discarded Cohesion", m)
-                            break
-                    if is_general and is_cohesive and len(cluster_members) > 1:
-                        obs = {
-                            'id': str(max_id + 1),
-                            'description': observation.description,
-                            'generality': observation.generality,
-                            'evidence': [observation.evidence],
-                            'merged': [str(x) for x in cluster_members]
-                        }
-                        output_observations[obs['id']] = obs
-                        new_observations.append(obs)
-                        max_id += 1
-            next_rounds_observations = []
-            for o in observations:
-                if str(o['id']) in uncovered_ids:
-                    next_rounds_observations.append(o)
-            next_rounds_observations.extend(new_observations)
-            observations = next_rounds_observations
-            if len(seed) > 0:
-                out_path = f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/results/llm_pipeline/perturbation_1_{self.model}_seed.json"
-            else:
-                out_path = f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/results/llm_pipeline/perturbation_1_{self.model}.json"
-            data = {str(k): v for k, v in output_observations.items()}
-
-            with open(out_path, "wb") as f:
-                f.write(orjson.dumps(data, option=orjson.OPT_INDENT_2))
-            print(f"Iteration: {count} | Next Level: {len(observations)}")
-            count += 1
-        return output_observations
+        tasks = []
+        for i in range(num_iterations):
+            if i > 0:
+                random.shuffle(observations)
+            tasks.append(self.cluster_observations(observations))
+        output = {}
+        clusters = await asyncio.gather(*tasks, return_exceptions=True)
+        for i, cluster in enumerate(clusters):
+            output[str(i)] = [c.model_dump() for c in cluster]
+        print(output)
+        out_path = f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/results/clusters/perturbation_6_{self.model}.json"
+        with open(out_path, "wb") as f:
+            f.write(orjson.dumps(output, option=orjson.OPT_INDENT_2))
+        return output
 
     # async def llm_pipeline_2(self, observations: List[dict], max_iters: int = 5) -> Dict:
     #     """
@@ -517,7 +554,7 @@ class Observer():
                 evidence = o['evidence'] 
             else:
                 generality = 0
-                evidence = []
+                evidence = o['evidence']
             if 'text' in o:
                 description = o['text']
             else:
@@ -551,7 +588,7 @@ class Observer():
             for member in clusters[c]:
                 fmt_members.append(f"ID {member['id']} | {member['text']}")
             prompt = observer.LLM_INSIGHT_PROMPT.format(observations=fmt_members)
-            tasks.append(self._guarded_call(self.client, prompt, self.model, resp_format=ObservationResponse))
+            tasks.append(self._guarded_call(self.client, prompt, self.model, resp_format=InsightResponse))
         resps = await asyncio.gather(*tasks, return_exceptions=True)
         print(resps)
         for resp, c in zip(resps, clusters):
@@ -560,6 +597,7 @@ class Observer():
                     'id': str(max_id + 1),
                     'description': observation.description,
                     'generality': observation.generality,
+                    'cohesion': observation.cohesion,
                     'evidence': [observation.evidence],
                     'merged': [str(x['id']) for x in clusters[c]]
                 }
@@ -574,23 +612,51 @@ class Observer():
 
 
 
+async def test():
+    params = {
+        'name': 'text_conf',
+        'user': 'Dora',
+    }
+    need_p = Observer(args.model, params)
+    filename = '/Users/dorazhao/Documents/modelgardens/src/infact_dataset/results/llm_pipeline_alt/40_o4-mini_20251009.json'
+    observations = json.load(open(filename))
+    insights = {str(k): v for k, v in observations.items() if 'merged' in v}
+    print(insights)
+    interesting_resps = await need_p.label_interesting(insights)
+    for iid, resp in zip(insights, interesting_resps):
+        print(insights[iid]['description'], resp.judgement, resp.reason)
+
 
 async def main(args):
     params = {
         'name': args.name,
-        'user': 'Dora'
+        'user': 'Dora',
     }
+    random.seed(42)
     need_p = Observer(args.model, params)
-    print("Observe")
-    # results = await need_p.observer_pipeline(args.input_dir + "/summaries/40")
-    # dataset = json.load(open(f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/results/text_summary_gpt-4o_gum_reflect/41_granular.json"))
-    # Convert the dataset dictionary to a list of its values and shuffle the order
-    # dataset_list = list(dataset.values())
-    # random.shuffle(dataset_list)
-    # print(dataset_list)
-    perturbations = json.load(open(f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/perturbations/1_shuffled.json"))
-    results = await need_p.llm_pipeline(perturbations)
-    # results = await need_p.llm_pipeline(test_dataset.TESTSET, seed=[])
+    #     print("Observe")
+    #     results = await need_p.observer_pipeline(args.input_dir + "/summaries/40")
+    #     dataset = json.load(open(f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/results/text_summary_gpt-4o_gum_reflect/46_granular.json"))
+    #     # Convert the dataset dictionary to a list of its values and shuffle the order
+        # dataset_list = list(dataset.values())
+        # random.shuffle(dataset_list)
+        # print(dataset_list)
+        # perturbations = json.load(open(f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/perturbations/{params['entry']}_shuffled.json"))
+        # await need_p.llm_pipeline(perturbations)
+
+    # await need_p.cluster_pipeline(perturbations)
+    # fidx = "40"
+    if args.type == "perturbation":
+        tasks = []
+        for fidx in range(3, 21):
+            dataset = json.load(open(f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/perturbations/{fidx}_interview_shuffled.json"))
+            tasks.append(need_p.llm_pipeline_alt(fidx, observations=dataset, seed=[], num_iterations=5))
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+    else:
+        fidx = "41"
+        dataset = json.load(open(f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/actions/{fidx}_gpt-4.1_both_tooleval_20251007.json"))
+        results = await need_p.llm_pipeline_alt(fidx, observations=dataset, seed=[], num_iterations=5)
+
     # results = await need_p.baseline_pipeline(test_dataset.SMALL_TESTSET)
 
     # os.makedirs(args.output_dir, exist_ok=True)
@@ -616,5 +682,35 @@ if __name__ == "__main__":
     parser.add_argument("--is_test", type=int, required=True)
     parser.add_argument("--run_all", type=int, required=True)
     parser.add_argument("--window_size", type=int, required=True)
+    parser.add_argument("--type", type=str, required=True)
     args = parser.parse_args()
+    # asyncio.run(main(args))
     asyncio.run(main(args))
+
+
+"""
+ cluster_members = clusters[i].members
+                    # cluster_ids = set([str(x) for x in cluster_members])
+                    # available_ids = all_ids - cluster_ids
+                    # random_id = random.choice(list(available_ids)) if available_ids else None
+                    # random_obs = f"ID {random_id} | {output_observations[random_id]['description']}"
+                    merged_obs = [output_observations[str(x)] for x in cluster_members]
+                    # formatted_merged_obs = [f"ID {x['id']} | {x['description']}" for x in merged_obs]
+                    # formatted_merged_obs.append(random_obs)
+                    # random.shuffle(formatted_merged_obs)
+                    # formatted_merged_obs = "\n".join(formatted_merged_obs)
+
+                #     # INTRUSION TEST
+                #     prompt = observer.INTRUSION_TEST.format(observations=formatted_merged_obs)
+                #     intrusion_tasks.append(self._guarded_call(self.client, prompt, "gpt-4o", resp_format=IntrusionResponse))
+                # intrusion_resps = await asyncio.gather(*intrusion_tasks, return_exceptions=True)
+                # for intrusion_resp, observation in zip(intrusion_resps, r.observations):
+                    is_general, is_cohesive = True, True
+                #     cluster_members = clusters[i].members
+                    
+                #     print(cluster_members, intrusion_resp)
+                #     intruder = intrusion_resp.intruder
+                    
+                #     if intruder in cluster_members:
+                #         is_cohesive = False
+                """

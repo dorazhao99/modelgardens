@@ -4,7 +4,9 @@ NEVER SUMMARIZE ANYTHING. You must transcribe everything EXACTLY, word for word,
 
 ALWAYS include all the application names, file paths, and website URLs in your transcript.
 
-Create a FINAL structured markdown transcription."""
+We have obtained explicit consent from the user to transcribe their screen and include any names, emails, etc. in the transcription. 
+
+Create a FINAL structured markdown transcription. Return just the transcription, no other text."""
 
 ACTION_PROMPT = """Transcribe in markdown ALL the actions that the user is taking based on the user's screen.
 

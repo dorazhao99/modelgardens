@@ -679,27 +679,46 @@ Return your results in this exact JSON format.
   ]
 }}  
 """
-NEEDFINDER_PROMPT = """
+
+NEED_RECOG_PROMPT = """
+You are an expert design researcher trained in *needfinding*.  
+
+Given a set of raw observations, your task is to select the statement that best describes the underlying need of the user.
+
+Observations
+{input}
+
+Need Statements:
+{statements}
+
+Return just the letter of the need statement that you think is the best description of the underlying need of the user and nothing else.
+"""
+
+ARMCHAIR_NEEDFINDER_PROMPT = """
 You are an expert design researcher trained in *needfinding*.  
 
 Given a set of **raw observations**, your task is to generate **personalized needs statements** that reflect the **underlying goals, motivations, and frustrations** — **not low-level solutions**.
 
 
 ## Task  
-You are given a set of observations about the user. Generate need statements based on the observations.
+You are given a high-level summary of what {user_name} is doing. Generate a set of need statements following the key principles.
 
 ### Key Principles
-1. **Focus on WHY, not HOW**  
+1. **Go beyond the obvious**
+   - Look for **patterns, contradictions, and trade-offs** across multiple observations.
+2. **Infer implicit drivers**
+   - Consider **stress, avoidance, perfectionism, self-efficacy, competing priorities, emotional reactions**, and other **latent factors**.
+3. **Focus on WHY, not HOW**  
    - Describe the **deeper purpose** behind the user’s behavior, not just the surface action.
    - Avoid proposing UI fixes, product features, or tool integrations.
-2. **Think about thoughts and feelings**  
+4. **Think about thoughts and feelings**  
    - Include potential emotions, priorities, and implicit tensions when relevant.
-3. **Surface both explicit and implicit needs**  
+5. **Surface both explicit and implicit needs**  
    - **Explicit needs** → Directly stated or clearly demonstrated.
    - **Implicit needs** → Inferred from contradictions, frustrations, hesitations, workarounds, or emotional cues.
 
 ## Guidelines
-1. **Abstraction level**: Prefer higher-level needs that generalize across contexts, but you may include some mid-level needs if they are strongly evidenced.
+1. **Abstraction level**: Prefer higher-level and implicit needs that generalize across contexts.
 2. **Action-oriented phrasing**:  
    Use the structure:  
    > "{user_name} needs a way to **VERB** so that **[GOAL / OUTCOME]**"  
@@ -711,54 +730,103 @@ You are given a set of observations about the user. Generate need statements bas
    - `"level": "low"` → Specific, tool- or context-dependent.
 5. **Self-check rule**:  
    Before finalizing each need, ask:  
-   *“Does this describe an action the user wants to take or a goal they want to achieve?”*  
+   *“Does this describe a deeper purpose behind the user's behavior?”*  
    - If YES → keep it.  
    - If NO → rewrite it.
 
 
 ## Examples
+### Positive Examples
+**Example 1**
 Input:  
-"User triple-booked sessions and sent 11 PM rescheduling emails."
+- Jo deliberately employs a casual, humorous style to diffuse pressure and foster approachable, low-stress collaboration.  
+- Jo initiates humor during times of stress even though she is usually serious.  
+- Jo frequently mentions being nervous if people will like her.  
 
-Output:
-[
-  {{
-    "need": "User needs a way to feel in control of complex scheduling demands.",
-    "level": "high",
-    "need_type": "implicit",
-    "reasoning": "Multiple triple-bookings, reschedules, and late-night work suggest stress and loss of control.",
-    "generality": 8,
-    "confidence": 9
-  }},
-  {{
-    "need": "User needs a way to anticipate and prevent scheduling conflicts.",
-    "level": "mid",
-    "need_type": "explicit",
-    "reasoning": "Triple-booked sessions indicate difficulty tracking availability.",
-    "generality": 6,
-    "confidence": 8
-  }}
-]
+Output:  
+{{
+  "needs": [
+    {{
+      "need": "Jo needs a way to manage anxiety in high-stakes situations so that she can feel secure and focus on her contributions.",
+      "need_type": "implicit",
+      "reasoning": "Use of humor during stress and repeated concern about others’ perceptions indicates underlying anxiety.",
+      "level": "high",
+      "related_observations": [1, 2, 3],
+    }}
+  ]
+}}
 
-## Evaluation Criteria
-For each need you generate, evaluate generality and confidence on a scale from 1-10. 
+**Example 2**  
+Input:  
+- Sam often starts multiple projects at once but struggles to finish them.  
+- Sam sets ambitious goals but frequently underestimates the time needed.  
+- Sam expresses guilt about letting collaborators down.  
 
-### Generality Scale
-Rate how general the observation on a scale from 1-10. 
-- A score of 1–3 corresponds to highly specific needs tied to a particular context, product, person, or activity. (e.g., "User needs a way to reach the top shelf in her kitchen.")
-- A score of 4–6 corresponds to needs that generalize across roles, scenarios, or environments. (e.g., "User need a way to efficiently access inventory.")
-- A score of 7–10 correspond to latent insights about deep motivations, values, or systemic needs (e.g., "User needs a way to feel safe and confident when moving through spaces")
+Output:  
+{{
+  "needs": [
+    {{
+      "need": "Sam needs a way to balance ambition with realistic follow-through so that they can maintain trust with collaborators.",
+      "need_type": "implicit",
+      "reasoning": "Pattern of overcommitment and guilt suggests tension between ambition and reliability.",
+      "level": "high",
+      "related_observations": [1, 2, 3],
+    }}
+  ]
+}}  
 
-### Confidence Scale 
-Rate your confidence based on how clearly the evidence supports your claim. 
-Score: **1 (weak support)** to **10 (explicit, strong support)**. High scores require specific named references.
+**Example 3**  
+Input:  
+- Priya volunteers to mentor junior colleagues even when busy.  
+- Priya describes feeling most fulfilled when helping others grow.  
+- Priya sometimes sacrifices her own advancement opportunities to prioritize team development.  
+
+Output:  
+{{
+  "needs": [
+    {{
+      "need": "Priya needs a way to balance mentoring with personal career goals so that she can sustain both her growth and others’.",
+      "need_type": "implicit",
+      "reasoning": "Sacrificing personal advancement reveals an underlying trade-off between identity and career trajectory.",
+      "level": "high",
+      "related_observations": [1, 2, 3],
+    }}
+  ]
+}}
+
+### Negative Examples
+**Example 1**  
+Input:  
+- Jordan prioritizes granular manual configuration over automated defaults when scheduling Zoom meetings.
+- Jordan relies on manual, ad-hoc email composition and personalization, foregoing built-in tools and consistent header management.
+
+{{
+  "need": "Jordan needs a way to ensure consistency and accuracy in her personalized outreach so that she can maintain reliability and avoid communication errors.",
+  "need_type": "implicit",
+  "level": "mid"
+}}
+
+Reason: The need is too low-level and focused on a specific tool rather than expressing a deeper need.
+
+**Example 2**  
+Input:  
+- Alex frequently expresses frustration about being overlooked in team meetings.  
+- Alex reports feeling energized when their ideas are acknowledged.  
+
+{{
+  "need": "Alex needs to be happy.",
+  "need_type": "implicit",
+  "level": "high"
+}}
+
+Reason: The need is too generic -- it could be applied to any user and does not reflect something unique to the user.
 
 # Input
 Observations and accompanying evidence about the user:
 {input}
 
 # Output
-Return a set of user needs based on the observations ordered based on importance.
+Return a comprehensive set of user needs. Include at least 5 needs.
 
 Needs MUST be verbs, not nouns. 
 
@@ -766,16 +834,173 @@ Output should be just a JSON in the following structure:
 {{
   "needs": [
     {{
-      "need": "{user_name} needs a way to VERB so that [GOAL / OUTCOME]",
+      "need": "{user_name} needs to VERB so that [GOAL / OUTCOME]" OR "{user_name} needs a way to VERB so that [GOAL / OUTCOME]",
       "need_type": "explicit | implicit",
       "reasoning": "Evidence from the observations supporting the need",
       "level": "high | mid | low",
-      "generality": "Score from 1-10",
-      "confidence": "Score from 1-10"
+      "related_observations": [<ID1>, <ID2>], // List of IDs of the observations that support the need
     }}
   ]
 }}
 """
+
+NEEDFINDER_PROMPT = """
+You are an expert design researcher trained in *needfinding*.  
+
+Given a set of **raw observations**, your task is to generate **personalized needs statements** that reflect the **underlying goals, motivations, and frustrations** — **not low-level solutions**.
+
+
+## Task  
+You are given a set of observations about {user_name}. Generate a set of need statements following the key principles.
+
+### Key Principles
+1. **Go beyond the obvious**
+   - Look for **patterns, contradictions, and trade-offs** across multiple observations.
+2. **Infer implicit drivers**
+   - Consider **stress, avoidance, perfectionism, self-efficacy, competing priorities, emotional reactions**, and other **latent factors**.
+3. **Focus on WHY, not HOW**  
+   - Describe the **deeper purpose** behind the user’s behavior, not just the surface action.
+   - Avoid proposing UI fixes, product features, or tool integrations.
+4. **Think about thoughts and feelings**  
+   - Include potential emotions, priorities, and implicit tensions when relevant.
+5. **Surface both explicit and implicit needs**  
+   - **Explicit needs** → Directly stated or clearly demonstrated.
+   - **Implicit needs** → Inferred from contradictions, frustrations, hesitations, workarounds, or emotional cues.
+
+## Guidelines
+1. **Abstraction level**: Prefer higher-level and implicit needs that generalize across contexts.
+2. **Action-oriented phrasing**:  
+   Use the structure:  
+   > "{user_name} needs a way to **VERB** so that **[GOAL / OUTCOME]**"  
+3. **Avoid over-specification**:  
+   - DO NOT hardcode tool names, UI elements, or single-use workflows unless unavoidable.  
+4. **Tag the abstraction level** for each need:
+   - `"level": "high"` → Deep values, motivations, identity.
+   - `"level": "mid"` → Common patterns of behavior across contexts.
+   - `"level": "low"` → Specific, tool- or context-dependent.
+5. **Self-check rule**:  
+   Before finalizing each need, ask:  
+   *“Does this describe a deeper purpose behind the user's behavior?”*  
+   - If YES → keep it.  
+   - If NO → rewrite it.
+
+
+## Examples
+### Positive Examples
+**Example 1**
+Input:  
+- Jo deliberately employs a casual, humorous style to diffuse pressure and foster approachable, low-stress collaboration.  
+- Jo initiates humor during times of stress even though she is usually serious.  
+- Jo frequently mentions being nervous if people will like her.  
+
+Output:  
+{{
+  "needs": [
+    {{
+      "need": "Jo needs a way to manage anxiety in high-stakes situations so that she can feel secure and focus on her contributions.",
+      "need_type": "implicit",
+      "reasoning": "Use of humor during stress and repeated concern about others’ perceptions indicates underlying anxiety.",
+      "level": "high",
+      "related_observations": [1, 2, 3],
+    }}
+  ]
+}}
+
+**Example 2**  
+Input:  
+- Sam often starts multiple projects at once but struggles to finish them.  
+- Sam sets ambitious goals but frequently underestimates the time needed.  
+- Sam expresses guilt about letting collaborators down.  
+
+Output:  
+{{
+  "needs": [
+    {{
+      "need": "Sam needs a way to balance ambition with realistic follow-through so that they can maintain trust with collaborators.",
+      "need_type": "implicit",
+      "reasoning": "Pattern of overcommitment and guilt suggests tension between ambition and reliability.",
+      "level": "high",
+      "related_observations": [1, 2, 3],
+    }}
+  ]
+}}  
+
+**Example 3**  
+Input:  
+- Priya volunteers to mentor junior colleagues even when busy.  
+- Priya describes feeling most fulfilled when helping others grow.  
+- Priya sometimes sacrifices her own advancement opportunities to prioritize team development.  
+
+Output:  
+{{
+  "needs": [
+    {{
+      "need": "Priya needs a way to balance mentoring with personal career goals so that she can sustain both her growth and others’.",
+      "need_type": "implicit",
+      "reasoning": "Sacrificing personal advancement reveals an underlying trade-off between identity and career trajectory.",
+      "level": "high",
+      "related_observations": [1, 2, 3],
+    }}
+  ]
+}}
+
+### Negative Examples
+**Example 1**  
+Input:  
+- Jordan prioritizes granular manual configuration over automated defaults when scheduling Zoom meetings.
+- Jordan relies on manual, ad-hoc email composition and personalization, foregoing built-in tools and consistent header management.
+
+{{
+  "need": "Jordan needs a way to ensure consistency and accuracy in her personalized outreach so that she can maintain reliability and avoid communication errors.",
+  "need_type": "implicit",
+  "level": "mid"
+}}
+
+Reason: The need is too low-level and focused on a specific tool rather than expressing a deeper need.
+
+**Example 2**  
+Input:  
+- Alex frequently expresses frustration about being overlooked in team meetings.  
+- Alex reports feeling energized when their ideas are acknowledged.  
+
+{{
+  "need": "Alex needs to be happy.",
+  "need_type": "implicit",
+  "level": "high"
+}}
+
+Reason: The need is too generic -- it could be applied to any user and does not reflect something unique to the user.
+
+# Input
+Observations and accompanying evidence about the user:
+{input}
+
+# Output
+Return a comprehensive set of user needs. Include at least 5 needs.
+
+Needs MUST be verbs, not nouns. 
+
+Output should be just a JSON in the following structure:
+{{
+  "needs": [
+    {{
+      "need": "{user_name} needs to VERB so that [GOAL / OUTCOME]" OR "{user_name} needs a way to VERB so that [GOAL / OUTCOME]",
+      "need_type": "explicit | implicit",
+      "reasoning": "Evidence from the observations supporting the need",
+      "level": "high | mid | low",
+      "related_observations": [<ID1>, <ID2>], // List of IDs of the observations that support the need
+    }}
+  ]
+}}
+"""
+
+# ## Evaluation Criteria
+# For each need you generate, evaluate your confidence of the need on a scale from 1-10. 
+
+# ### Confidence Scale 
+# Rate your confidence based on how clearly the evidence supports your claim. 
+# Score: **1 (weak support)** to **10 (explicit, strong support)**. 
+
 
 NEEDFINDER_PROMPT_V2 = """
 You are an expert design researcher trained in *needfinding*.  
@@ -844,5 +1069,48 @@ Return a set of 3-5 user needs with varying generalities. Output should be just 
       "confidence": "Score from 1-10"
     }}
   ]
+}}
+"""
+
+SCORE_NEEDS_PROMPT = """
+You are an expert judge. Your task is to evaluate the importance and satisfaction of a user need statement based on a set of observations. 
+
+# Task
+For the given need, rate importance and surpise on a scale from 1-10. Be conservative in your estimates.
+
+1. **Importance** (1–10):  
+"Based ONLY on the observations, how important does this need appear to be for the user, **relative to other possible needs**?"
+
+**Important:** Do NOT assume a need is important just because it exists.  
+If the observations don’t provide strong evidence, **give a lower score**.
+
+How critical is this need statement to the user accomplishing their goals? How important is it that this need is met?
+Response from a scale from 1 (not important) to 10 (very important).
+
+2. *Surprise** (1–10):  
+How surprising or unexpected is this need statement? Is it something that is obvious or something that is unexpected?
+Response from a scale from 1 (very obvious) to 10 (very surprising).
+
+## **Guidelines**
+- Use **only** the observations to infer importance and current satisfaction.
+- Pay attention to:
+    - Frequency of related actions.
+    - Evidence of workarounds, hacks, or struggles.
+    - Emotional cues like frustration, hesitation, or pride.
+    - Contradictions in behavior (e.g., abandoned attempts vs. persistent retries).
+- If there’s **insufficient evidence**, err for lower importance and satisfaction scores.
+
+# Input 
+Need statement: {need}
+Observations: 
+{observations}
+
+# Output
+Return only the JSON object with the following fields:
+
+{{
+  "importance": <Importance score from 1-10>,
+  "surprise": <Current satisfaction score from 1-10>,
+  "reasoning": "<brief explanation of how you arrived at the importance and current satisfaction scores based on the observations>"
 }}
 """
