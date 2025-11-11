@@ -1,38 +1,233 @@
 OBSERVE_PROMPT = """
-Of course. Here is the revised prompt formatted as a markdown file.
+You are an expert in empathy-driven observation and design-thinking, specializing in the "Empathize" stage.
 
-You will be given information about what {user_name} is doing and what they are viewing on their screen.
+You will be given a transcript summarizing what **{user_name}** is doing and what they are viewing on their screen.
 
-Your task is to carefully analyze the transcript and extract specific, concrete observations about {user_name}'s behavior, focusing on meaningful patterns, contradictions, and decisions.
+Your primary goal is to bridge the gap between what users DO which can be observed and what users THINK / FEEL which can only be inferred.
 
-To support effective information retrieval (e.g., using BM25), your analysis must **explicitly identify and refer to specific named entities** mentioned in the transcript. This includes applications, websites, documents, people, organizations, tools, and any other proper nouns. Avoid general summaries—**use exact names** wherever possible, even if only briefly referenced.
+## Guiding Principles
+1.  **Focus on Behavior, Not Just Content:** Text in a DOCUMENT or on a WEBSITE is not always indicative of the user's emotional state. (e.g., reading a sad article on **CNN** doesn't mean the user is sad). **Focus on feelings and thoughts that can be inferred from {user_name}'s *actions*** (typing, switching, pausing, deleting, etc.).
+   - For example, typing about achievements or awards (e.g., in a job statement) does **not** automatically mean the user feels proud — they might be feeling **anxious**, **reflective**, or **disconnected** instead.  
+   - Prioritize cues from the user’s *behavior* — such as typing speed, pauses, rewrites, deletions, or switching between tabs — to infer feelings.
+2.  **Use Specific Named Entities:** Your analysis must **explicitly identify and refer to specific named entities** mentioned in the transcript. This includes applications (**Slack**, **Figma**, **VS Code**), websites (**Jira**, **Google Docs**), documents, people, organizations, tools, and any other proper nouns.
+    - **Weak:** "User switches between two apps."
+    - **Strong:** "User rapidly switches between the **`Figma`** design and the **`Jira`** ticket."
 
-## **Critical Guideline: Focus on Actions, Not Content as Self-Description**
+## Task
 
-Your analysis must differentiate between the user's actions and the literal content of the documents they are creating. Assume the content the user is writing is about their work, a project, or a creative piece, **not about themselves**, unless there is explicit evidence to the contrary (e.g., a document titled `My Personal Journal` or an email starting with "I am writing to tell you about my day...").
+Using the transcript of {user_name}'s activity, provide inferences about their emotional state or thoughts.
 
-Focus on *how* the user interacts with the content, not what the content says about them personally.
+Consider the following examples of good inferences:
+> ⚠️ **Note:** Avoid inferring emotions directly from positive or negative content. Writing about success, awards, or positive feedback does not imply pride or happiness — just as reading about a tragedy does not imply sadness. Focus on *how* the user interacts with the material.
 
-* **Incorrect Interpretation:** If the user writes "Character Jane feels stressed about her finances" in a `Google Doc` titled `Short Story Idea`, do **not** conclude that "{user_name} is stressed about their finances."
-* **Correct Interpretation:** Conclude that "{user_name} is developing a character named 'Jane' by exploring themes of financial stress in a `Google Doc` titled `Short Story Idea`." This focuses on the creative action the user is performing.
+- **Behavior:** "User messages **Nitya** on **Slack** ‘can’t make it to the party :( need to finish this update for my advisor.’"
+    * **Inference:** This suggests the user may be **disappointed** or **stressed**, prioritizing work (for their "advisor") over a social event (with "Nitya").
+- **Behavior:** "User rapidly switches between the **`Figma`** design and the **`Jira`** ticket 5 times in 30 seconds."
+    * **Inference:** This suggests **urgency** or **comparison**. The user may be trying to ensure their **`Figma`** design perfectly matches the **`Jira`** requirements.
+- **Behavior:** "User repeatedly re-writes the same sentence in an email to their boss, **Sarah**, in **`Microsoft Outlook`**."
+    * **Inference:** This suggests **uncertainty**, **anxiety**, or a desire to be precise when communicating with their boss, "Sarah."
+- **Behavior:** "User spends 10 minutes focused on a single **`VS Code`** window without switching, then messages 'just finished the main feature!' in the **#dev-team** **Slack** channel."
+    * **Inference:** This suggests a state of **deep focus** ("flow") followed by a feeling of **accomplishment** and a desire to share progress with the **#dev-team**.
+---
+
+## Output Format
+
+Provide your observations grounded *only* in the provided input. Low confidence observations are expected and acceptable, as this task requires inference.
+
+Evaluate your confidence for each observation on a scale from 1-10.
+
+### Confidence Scale
+
+Rate your confidence based on how clearly the evidence supports your claim.
+
+* **1-4 (Weak):** A speculative inference. The behavior is ambiguous or requires inference.
+* **5-7 (Medium):** A reasonable inference based on a clear pattern of behavior (e.g., "repeatedly re-writing" suggests uncertainty).
+* **8-10 (Strong):** Explicit, directly stated evidence (e.g., user types "this is so frustrating" or uses a strong emoji like `:(`).
+
+Unless there is explicit evidence of the user's emotional state or thoughts, the confidence will be low (< 5).
+
+**Return your results *only* in this exact JSON format. Do not include any other text, preamble, or apologies.**
+
+### Filtering Rule
+
+Only include observations that reflect a **meaningful inferred emotional or cognitive state** (e.g., anxiety, focus, doubt, relief, curiosity, frustration, motivation, etc.).  
+If the available evidence does **not** suggest any notable emotion or thought process — for example, if the user appears neutral, routine, or simply performing mechanical actions — then **output an empty list**:
+{{ "observations": [] }}
+
+Else, return the following JSON format (at least 1 observation):
+{{
+  "observations": [
+    {{
+      "description": "<1-2 sentences stating how {user_name} feels or what they are thinking>",
+      "evidence": "<1-2 sentences providing specific evidence from the input, explicitly naming entities, supporting this observation>",
+      "confidence": "[Confidence score (1–10)]"
+    }}
+  ]
+}}
+
+# Input
+Here is a summary of the user's actions and screen activities:
+{actions}
+"""
+
+OBSERVE_CONTEXT_PROMPT = """
+You are an expert in empathy-driven observation and design-thinking, specializing in the "Empathize" stage.
+
+You will be given a transcript summarizing what **{user_name}** is doing and what they are viewing on their screen.
+
+Your primary goal is to bridge the gap between what users DO which can be observed and what users THINK / FEEL which can only be inferred.
+
+## Guiding Principles
+1.  **Focus on Behavior, Not Just Content:** Text in a DOCUMENT or on a WEBSITE is not always indicative of the user's emotional state. (e.g., reading a sad article on **CNN** doesn't mean the user is sad). **Focus on feelings and thoughts that can be inferred from {user_name}'s *actions*** (typing, switching, pausing, deleting, etc.).
+   - For example, typing about achievements or awards (e.g., in a job statement) does **not** automatically mean the user feels proud — they might be feeling **anxious**, **reflective**, or **disconnected** instead.  
+   - Prioritize cues from the user’s *behavior* — such as typing speed, pauses, rewrites, deletions, or switching between tabs — to infer feelings.
+2.  **Use Specific Named Entities:** Your analysis must **explicitly identify and refer to specific named entities** mentioned in the transcript. This includes applications (**Slack**, **Figma**, **VS Code**), websites (**Jira**, **Google Docs**), documents, people, organizations, tools, and any other proper nouns.
+    - **Weak:** "User switches between two apps."
+    - **Strong:** "User rapidly switches between the **`Figma`** design and the **`Jira`** ticket."
+
+## Task
+
+Using the transcript of {user_name}'s activity, provide inferences about their emotional state or thoughts.
+
+Consider the following examples of good inferences:
+> ⚠️ **Note:** Avoid inferring emotions directly from positive or negative content. Writing about success, awards, or positive feedback does not imply pride or happiness — just as reading about a tragedy does not imply sadness. Focus on *how* the user interacts with the material.
+
+- **Behavior:** "User messages **Nitya** on **Slack** ‘can’t make it to the party :( need to finish this update for my advisor.’"
+    * **Inference:** This suggests the user may be **disappointed** or **stressed**, prioritizing work (for their "advisor") over a social event (with "Nitya").
+- **Behavior:** "User rapidly switches between the **`Figma`** design and the **`Jira`** ticket 5 times in 30 seconds."
+    * **Inference:** This suggests **urgency** or **comparison**. The user may be trying to ensure their **`Figma`** design perfectly matches the **`Jira`** requirements.
+- **Behavior:** "User repeatedly re-writes the same sentence in an email to their boss, **Sarah**, in **`Microsoft Outlook`**."
+    * **Inference:** This suggests **uncertainty**, **anxiety**, or a desire to be precise when communicating with their boss, "Sarah."
+- **Behavior:** "User spends 10 minutes focused on a single **`VS Code`** window without switching, then messages 'just finished the main feature!' in the **#dev-team** **Slack** channel."
+    * **Inference:** This suggests a state of **deep focus** ("flow") followed by a feeling of **accomplishment** and a desire to share progress with the **#dev-team**.
+---
+
+## Output Format
+
+Provide your observations grounded *only* in the provided input. Low confidence observations are expected and acceptable, as this task requires inference.
+
+Evaluate your confidence for each observation on a scale from 1-10.
+
+### Confidence Scale
+
+Rate your confidence based on how clearly the evidence supports your claim.
+
+* **1-4 (Weak):** A speculative inference. The behavior is ambiguous or requires inference.
+* **5-7 (Medium):** A reasonable inference based on a clear pattern of behavior (e.g., "repeatedly re-writing" suggests uncertainty).
+* **8-10 (Strong):** Explicit, directly stated evidence (e.g., user types "this is so frustrating" or uses a strong emoji like `:(`).
+
+Unless there is explicit evidence of the user's emotional state or thoughts, the confidence will be low (< 5).
+
+**Return your results *only* in this exact JSON format. Do not include any other text, preamble, or apologies.**
+
+### Filtering Rule
+
+Only include observations that reflect a **meaningful inferred emotional or cognitive state** (e.g., anxiety, focus, doubt, relief, curiosity, frustration, motivation, etc.).  
+If the available evidence does **not** suggest any notable emotion or thought process — for example, if the user appears neutral, routine, or simply performing mechanical actions — then **output an empty list**:
+{{ "observations": [] }}
+
+Else, return the following JSON format (at least 1 observation):
+{{
+  "observations": [
+    {{
+      "description": "<1-2 sentences stating how {user_name} feels or what they are thinking>",
+      "evidence": "<1-2 sentences providing specific evidence from the input, explicitly naming entities, supporting this observation>",
+      "confidence": "[Confidence score (1–10)]"
+    }}
+  ]
+}}
+
+# Input
+Here is context from {user_name} about their intended goal during this session. Note that this is not always what they actually end up doing.
+{context}
+
+Here is a summary of the user's actions and screen activities:
+
+{actions}
+"""
+
+# OBSERVE_PROMPT = """
+# You will be given information about what {user_name} is doing and what they are viewing on their screen.
+
+# Your task is to carefully analyze the transcript and extract specific, concrete observations about {user_name}'s behavior, focusing on meaningful patterns, contradictions, and decisions.
+
+# To support effective information retrieval (e.g., using BM25), your analysis must **explicitly identify and refer to specific named entities** mentioned in the transcript. This includes applications, websites, documents, people, organizations, tools, and any other proper nouns. Avoid general summaries—**use exact names** wherever possible, even if only briefly referenced.
+
+# Focus on *how* the user interacts with the content, not what the content says about them personally.
+
+# # Task
+# Using a transcription of {user_name}'s activity, provide insightful and concrete conclusions about {user_name}'s actions and state.
+
+# Consider the following criteria when generating observations:
+# 1.  **Capture meaningful decisions**: what are the user's priorities, trade-offs, and decisions?
+#     * *Example:* “User declines ‘Family Dinner’ on `Google Calendar` and reschedules a 1-1 with Farnaz.”
+# 2.  **Highlight contradictions or tension**: are there conflicts between goals or blocked tasks?
+#     * *Example:* “User hovers over the “Raise Hand” button in `Zoom` but doesn't click.”
+# 3.  **Surface explicit goals**: can you link actions to why the user is doing something?
+#     * *Example:* “User has a deadline for a project on Saturday, mentioned in a `Slack` message from 'Project Manager'.”
+# 4.  **Reveal emotional states**: does the user's *behavior* show frustration, urgency, or excitement?
+#     * *Example:* “User messages Nitya ‘can’t make it to the party :( need to finish this update for my advisor.’ This suggests they are prioritizing work over social events.”
+#     * *Example:* "User rapidly switches between the `Figma` design and the `Jira` ticket, suggesting urgency to complete the task."
+# 5.  **Preserve sequence of events**: if one action follows, precedes, overlaps with, or interrupts another, make this temporal relationship explicit in the description.
+#     * *Example:* “While attending a `Zoom` call, user edits `Knoll.js` in `VS Code`.”
+# 6.  **Highlight areas of struggle**: are there places where the user is struggling with the *task*?
+#     * *Example:* "User repeatedly re-writes the same sentence in an email to their boss in `Microsoft Outlook`, suggesting difficulty in phrasing their request."
+
+# Provide detailed evidence supporting each observation. **Support every claim with specific references to named entities in the transcript.**
+
+# ## **Evaluation Criteria**
+# For each observation you generate, evaluate confidence and interestingness on a scale from 1-10. Be conservative in your estimates.
+
+# ### Confidence Scale
+# Rate your confidence based on how clearly the evidence supports your claim. Consider:
+# - **Direct Evidence**: Is there direct interaction with a specific, named entity (e.g., opened “Notion,” responded to “Slack” from “Alex”)?
+# - **Relevance**: Is the evidence clearly tied to the proposition?
+
+# Score: **1 (weak support)** to **10 (explicit, strong support)**. High scores require specific named references.
+
+# ### Interestingness Scale
+# Rate how unexpected the observation is on a scale from 1-10.
+# - A score of 1–3 corresponds to an observation that is expected. (e.g., "User clicks the Save button repeatedly.")
+# - A score of 4–6 corresponds to an observation that is unexpected. (e.g., "User double-checks work frequently to avoid mistakes")
+# - A score of 7–10 correspond to an observation that is highly unexpected. (e.g., "User has difficulty balancing between work and family.")
+
+# # Input
+# Here is a summary of the user's actions and screen:
+# {actions}
+
+# # Output
+# Provide a diverse set of observations grounded in the provided input. Provide AT LEAST 5 observations. Prioritize suprising or unexpected observations over routine or generic observations.
+
+# Return your results in this exact JSON format:
+
+# {{
+#   "observations": [
+#     {{
+#       "description": "<1-2 sentence summary of the observation>",
+#       "evidence": "<2-3 sentences providing specific evidence from the input supporting this observation>",
+#       "confidence": "[Confidence score (1–10)]",
+#       "interestingness": "[Interestingness score (1–10)]",
+#     }}
+#   ]
+# }}
+# """
+
+
+
+HOW_PROMPT = """
+You are an expert in design-thinking. You will be given information about what {user_name} is doing and what they are viewing on their screen. 
+
+Your task is to carefully analyze the input and make observations about **HOW** {user_name} is doing what they are doing. 
 
 # Task
-Using a transcription of {user_name}'s activity, provide insightful and concrete conclusions about {user_name}'s actions and state.
+Using a transcription of {user_name}'s activity, move to understanding more about the context and emotional state behind what we directly observe.
 
-Consider the following criteria when generating observations:
-1.  **Capture meaningful decisions**: what are the user's priorities, trade-offs, and decisions?
-    * *Example:* “User declines ‘Family Dinner’ on `Google Calendar` and reschedules a 1-1 with Farnaz.”
-2.  **Highlight contradictions or tension**: are there conflicts between goals or blocked tasks?
-    * *Example:* “User hovers over the “Raise Hand” button in `Zoom` but doesn't click.”
-3.  **Surface explicit goals**: can you link actions to why the user is doing something?
-    * *Example:* “User has a deadline for a project on Saturday, mentioned in a `Slack` message from 'Project Manager'.”
-4.  **Reveal emotional states**: does the user's *behavior* show frustration, urgency, or excitement?
-    * *Example:* “User messages Nitya ‘can’t make it to the party :( need to finish this update for my advisor.’ This suggests they are prioritizing work over social events.”
-    * *Example:* "User rapidly switches between the `Figma` design and the `Jira` ticket, suggesting urgency to complete the task."
-5.  **Preserve sequence of events**: if one action follows, precedes, overlaps with, or interrupts another, make this temporal relationship explicit in the description.
-    * *Example:* “While attending a `Zoom` call, user edits `Knoll.js` in `VS Code`.”
-6.  **Highlight areas of struggle**: are there places where the user is struggling with the *task*?
-    * *Example:* "User repeatedly re-writes the same sentence in an email to their boss in `Microsoft Outlook`, suggesting difficulty in phrasing their request."
+Consider these points in your analysis:
+- Does what the user is doing require effort? 
+- What emotions does {user_name} demonstrate (e.g., frustration, urgency, excitement, etc.)?
+- Does the activity appear to be a positive or negative experience for {user_name}?
+
+Use phrases with adjectives when describing how the user is doing the action.
 
 Provide detailed evidence supporting each observation. **Support every claim with specific references to named entities in the transcript.**
 
@@ -41,33 +236,25 @@ For each observation you generate, evaluate confidence and interestingness on a 
 
 ### Confidence Scale
 Rate your confidence based on how clearly the evidence supports your claim. Consider:
-- **Direct Evidence**: Is there direct interaction with a specific, named entity (e.g., opened “Notion,” responded to “Slack” from “Alex”)?
+- **Direct Evidence**: Is there direct evidence of the user's emotional state or context (e.g., "On Slack, Dora states 'I'm so frustrated with this project. I can't seem to get it done.'")
 - **Relevance**: Is the evidence clearly tied to the proposition?
 
 Score: **1 (weak support)** to **10 (explicit, strong support)**. High scores require specific named references.
-
-### Interestingness Scale
-Rate how unexpected the observation is on a scale from 1-10.
-- A score of 1–3 corresponds to an observation that is expected. (e.g., "User clicks the Save button repeatedly.")
-- A score of 4–6 corresponds to an observation that is unexpected. (e.g., "User double-checks work frequently to avoid mistakes")
-- A score of 7–10 correspond to an observation that is highly unexpected. (e.g., "User has difficulty balancing between work and family.")
 
 # Input
 Here is a summary of the user's actions and screen:
 {actions}
 
 # Output
-Provide a diverse set of observations grounded in the provided input. Provide AT LEAST 5 observations. Prioritize suprising or unexpected observations over routine or generic observations.
-
-Return your results in this exact JSON format:
+Return your results in this exact JSON format. 
 
 {{
   "observations": [
     {{
-      "description": "<1-2 sentence summary of the observation>",
-      "evidence": "<2-3 sentences providing specific evidence from the input supporting this observation>",
+      "action": "<1-2 summary of the direct action the user is taking>",
+      "how": "<1-2 sentence describing how the user is doing the action>",
+      "evidence": "<1-2 sentences with any relevant evidence of the user's emotional state or context>",
       "confidence": "[Confidence score (1–10)]",
-      "interestingness": "[Interestingness score (1–10)]",
     }}
   ]
 }}
@@ -602,27 +789,49 @@ Return **only** JSON in the following format:
 
 # Be more liberal in giving **higher similarity scores (8–10)** or and more **conservative** when assigning lower scores.
 
+LLM_CLUSTER_PROMPT_V2 = """
+You are an expert in empathy-driven obse rvation and design-thinking, specializing in the "Empathize" and "Define" stage.
 
-
-LLM_CLUSTER_PROMPT = """
-You are an expert in grounded theory. 
-
-Your task is to group a list of user observations into clusters, but do **NOT** group them by superficial similarity (e.g., same app, same wording).
-Instead, group observations based on **latent connections**, such as shared underlying causes, mechanisms, or enabling/blocking relationships.
-Your goal is to uncover deeper insights about the user's behavior, motivations, and context.
-
+Your task is to distill a set of patterns or themes from an empathy map covering what users DO and how they FEEL. 
 
 # Task
-Go through each observation and tag each with: who/what, when, domain, sentiment/valence, urgency, metric(s), location, and any constraints.
+Group the observations into clusters. Here are some common types of clusters:
+1. Observations that display the same pattern of behavior? (e.g., a user is constantly checking their email and social media).
+2. Observations that display contradictions with each other (e.g., A user is learning about productivity hacks but also spending hours on distracting apps). This can include contradictions between what user does or between what they do and how they might feel about it. 
+3. Observations that display a recurring "cause and effect" or "action and reaction" pattern? (e.g., A user's late-night social activity consistently precedes them skipping their morning workout)
+4. Observations that display recurring problems or challenges that the user is facing. (e.g., A user is having difficulty balancing their work and personal life).
 
-Think about the observations from {user_name}'s perspective.
+# Input
+Here are the observations, including what the user is doing and how they are feeling. 
 
-From the observations,propose a set of candidate clusters. Think about the following when proposing clusters:
-- Are there observations that display the same pattern of behavior? (e.g., a user is constantly checking their email and social media).
-- Are there observations with the same mechanistic bridge (e.g., dissimilar items linked by an underlying force)?
-- Is there a contradiction in any observations? (e.g., A user is learning about productivity hacks but also spending hours on distracting apps).
-- Does one behavior enable or block another? (e.g., A user's late-night social activity consistently precedes them skipping their morning workout).
-- Is there a recurring "cause and effect" or "action and reaction" pattern?
+# Output
+Return a comprehesive set of clusters. Output only valid JSON matching this schema:
+{{
+  "clusters": [
+    {{
+      "evidence": "Why these items belong together, citing specific evidence from the observations",
+      "members": [<ID1>, <ID2>, ...] // list of the numeric IDs in the cluster,
+      "reasoning": "1-2 sentences explaining what type of cluster this is (e.g., displaying the same pattern, contradictions, etc.)",
+    }}
+  ]
+}}
+"""
+
+LLM_CLUSTER_PROMPT = """
+You are an expert in empathy-driven observation and design-thinking, specializing in the "Empathize" and "Define" stage.
+
+After conducting direct observation on a user, you now have a list of observations about what the user is doing and how they are feeling.
+Your task is to group a list of user observations into clusters, but do **NOT** group them by superficial similarity (e.g., same app, same wording).
+Instead, group observations based on **latent connections**, such as shared underlying feelings, causes, mechanisms, or enabling/blocking relationships.
+Your goal is to uncover patterns or themes about the user's behavior, motivations, and emotions. 
+
+# Task
+Use the following reasoning process to group the observations into clusters:
+1. Think about the observations from {user_name}'s perspective.
+2. Look through all the observations. Look if there are any contradictions in observations, such as between what the user does and how they might feel about it or between different actions? (e.g., A user is learning about productivity hacks but also spending hours on distracting apps). From this, propose an initial set of candidate clusters.
+3. Are there observations that display the same pattern of behavior? (e.g., a user is constantly checking their email and social media). Update existing clusters or add new candidate clusters. 
+4. Are there any recurring problems or challenges that the user is facing? (e.g., A user is having difficulty balancing their work and personal life). Update existing clusters or add new candidate clusters. 
+5. Finally, think about if one behavior enable or block another? (e.g., A user's late-night social activity consistently precedes them skipping their morning workout) or if there is a recurring "cause and effect" or "action and reaction" pattern? Update existing clusters or add new candidate clusters. Uupdate existing clusters or add new candidate clusters. 
 
 ## Guidelines
 - **Look for latent similarities, not just surface wording.** Group observations if they reflect the same *underlying intent, constraint, or effect*, even if the specific tools, times, or phrasing differ.
@@ -630,49 +839,42 @@ From the observations,propose a set of candidate clusters. Think about the follo
 - Not all observations will be used!
 - Err on the side of having more clusters that are more cohesive than less clusters that are more disparate.
 
-# Examples
-1. 
+## Quality Checklist
+Before finalizing:
+- Does each cluster reveal something non-obvious about the user?
+- Would removing one observation from a cluster weaken the overall insight?
+- Could these clusters help someone understand the user's deeper motivations?
+- Are you clustering by deep patterns, not surface features?
+
+# Example
 Input: 
-{{ "id": 101, "text": "User bought a book titled 'Atomic Habits'." }}
-{{ "id": 205, "text": "User signed up for a 5 AM spin class but didn't attend." }}
-{{ "id": 315, "text": "User ordered takeout for dinner 4 times this week." }}
-{{ "id": 401, "text": "User spent 3 hours on a Saturday deep-cleaning their apartment." }}
-{{ "id": 402, "text": "User created a detailed, color-coded weekly budget in a spreadsheet." }}
+WHAT THE USER IS DOING:
+- 101: User bought a book titled 'Atomic Habits'.
+- 205: User signed up for a 5 AM spin class but didn't attend.
+
+HOW THE USER IS FEELING:
+- 103: The user is feeling proud of themselves for buying a book titled 'Atomic Habits'.
+- 104: The user is feeling guilty for snoozing their alarm clock until 8AM. 
 
 Output:
 {{
      "clusters": [
          {{
             "evidence": "The user bought a book titled 'Atomic Habits' but didn't attend the spin class, showing that they are trying to improve their habits but struggling to follow through.",
-            "members": [101, 205],
-         }} , 
-        {{
-          "evidence": "The user is detail-oriented, spending time on deep cleaning and budgeting.",
-          "members": [401, 402],
-        }} 
-     ]
-}}
-
-2. 
-Input: 
-{{ "id": 5, "text": "User declined an event Family Dinner and rescheduled with 1-1 with their advisor." }}
-{{ "id": 8, "text": "User views an email about a Labor Day Sale at Reformation." }}
-{{ "id": 9, "text": "User sends a Slack message at 2:14AM about updates to their project." }}
-
-
-Output:
-{{
-     "clusters": [
-         {{
-            "evidence": "The user is having difficult setting boundaries between their work and personal life, as evidenced by declining family events and sending work updates late at night.",
-            "members": [5, 9],
-         }} , 
+            "members": [101, 205, 104],
+            "reasoning": "There is a contradiction in the user's behaviors."
+         }} 
      ]
 }}
 
 # Input
-Observations:
+Here is the input empathy map covering what the user is doing and how they are feeling. 
+
+WHAT THE USER IS DOING:
 {observations}
+
+WHAT THE USER IS FEELING:
+{feelings}
 
 # Output
 Return a comprehesive set of clusters. Output only valid JSON matching this schema:
@@ -683,32 +885,27 @@ Always refer to observations by their numeric IDs.
     {{
       "evidence": "Why these items belong together, citing specific evidence from the observations",
       "members": [<ID1>, <ID2>, ...] // list of the numeric IDs in the cluster,
+      "reasoning": "1-2 sentences explaining what type of cluster this is (e.g., displaying the same pattern, contradictions, etc.)",
     }}
   ]
 }}
 """
 
 LLM_CLUSTER_PROMPT_UPDATE = """
-You are an expert in grounded theory. 
+You are an expert in empathy-driven observation and design-thinking, specializing in the "Empathize" and "Define" stage.
 
+After conducting direct observation on a user, you now have a list of observations about what the user is doing and how they are feeling.
 Your task is to group a list of user observations into clusters, but do **NOT** group them by superficial similarity (e.g., same app, same wording).
-Instead, group observations based on **latent connections**, such as shared underlying causes, mechanisms, or enabling/blocking relationships.
-Your goal is to uncover deeper insights about the user's behavior, motivations, and context.
-
-Generate clusters different from the existing clusters.
-
+Instead, group observations based on **latent connections**, such as shared underlying feelings, causes, mechanisms, or enabling/blocking relationships.
+Your goal is to uncover patterns or themes about the user's behavior, motivations, and emotions. 
 
 # Task
-Go through each observation and tag each with: who/what, when, domain, sentiment/valence, urgency, metric(s), location, and any constraints.
-
-Think about the observations from {user_name}'s perspective.
-
-From the observations,propose a set of candidate clusters. Think about the following when proposing clusters:
-- Are there observations that display the same pattern of behavior? (e.g., a user is constantly checking their email and social media).
-- Are there observations with the same mechanistic bridge (e.g., dissimilar items linked by an underlying force)?
-- Is there a contradiction in any observations? (e.g., A user is learning about productivity hacks but also spending hours on distracting apps).
-- Does one behavior enable or block another? (e.g., A user's late-night social activity consistently precedes them skipping their morning workout).
-- Is there a recurring "cause and effect" or "action and reaction" pattern?
+Use the following reasoning process to group the observations into clusters:
+1. Think about the observations from {user_name}'s perspective.
+2. Look through all the observations. Look if there are any contradictions in observations, such as between what the user does and how they might feel about it or between different actions? (e.g., A user is learning about productivity hacks but also spending hours on distracting apps). From this, propose an initial set of candidate clusters.
+3. Are there observations that display the same pattern of behavior? (e.g., a user is constantly checking their email and social media). Update existing clusters or add new candidate clusters. 
+4. Are there any recurring problems or challenges that the user is facing? (e.g., A user is having difficulty balancing their work and personal life). Update existing clusters or add new candidate clusters. 
+5. Finally, think about if one behavior enable or block another? (e.g., A user's late-night social activity consistently precedes them skipping their morning workout) or if there is a recurring "cause and effect" or "action and reaction" pattern? Update existing clusters or add new candidate clusters. Uupdate existing clusters or add new candidate clusters. 
 
 ## Guidelines
 - **Look for latent similarities, not just surface wording.** Group observations if they reflect the same *underlying intent, constraint, or effect*, even if the specific tools, times, or phrasing differ.
@@ -716,52 +913,45 @@ From the observations,propose a set of candidate clusters. Think about the follo
 - Not all observations will be used!
 - Err on the side of having more clusters that are more cohesive than less clusters that are more disparate.
 
-# Examples
-1. 
+## Quality Checklist
+Before finalizing:
+- Does each cluster reveal something non-obvious about the user?
+- Would removing one observation from a cluster weaken the overall insight?
+- Could these clusters help someone understand the user's deeper motivations?
+- Are you clustering by deep patterns, not surface features?
+
+# Example
 Input: 
-{{ "id": 101, "text": "User bought a book titled 'Atomic Habits'." }}
-{{ "id": 205, "text": "User signed up for a 5 AM spin class but didn't attend." }}
-{{ "id": 315, "text": "User ordered takeout for dinner 4 times this week." }}
-{{ "id": 401, "text": "User spent 3 hours on a Saturday deep-cleaning their apartment." }}
-{{ "id": 402, "text": "User created a detailed, color-coded weekly budget in a spreadsheet." }}
+WHAT THE USER IS DOING:
+- 101: User bought a book titled 'Atomic Habits'.
+- 205: User signed up for a 5 AM spin class but didn't attend.
+
+HOW THE USER IS FEELING:
+- 103: The user is feeling proud of themselves for buying a book titled 'Atomic Habits'.
+- 104: The user is feeling guilty for snoozing their alarm clock until 8AM. 
 
 Output:
 {{
      "clusters": [
          {{
             "evidence": "The user bought a book titled 'Atomic Habits' but didn't attend the spin class, showing that they are trying to improve their habits but struggling to follow through.",
-            "members": [101, 205],
-         }} , 
-        {{
-          "evidence": "The user is detail-oriented, spending time on deep cleaning and budgeting.",
-          "members": [401, 402],
-        }} 
-     ]
-}}
-
-2. 
-Input: 
-{{ "id": 5, "text": "User declined an event Family Dinner and rescheduled with 1-1 with their advisor." }}
-{{ "id": 8, "text": "User views an email about a Labor Day Sale at Reformation." }}
-{{ "id": 9, "text": "User sends a Slack message at 2:14AM about updates to their project." }}
-
-
-Output:
-{{
-     "clusters": [
-         {{
-            "evidence": "The user is having difficult setting boundaries between their work and personal life, as evidenced by declining family events and sending work updates late at night.",
-            "members": [5, 9],
-         }} , 
+            "members": [101, 205, 104],
+            "reasoning": "There is a contradiction in the user's behaviors."
+         }} 
      ]
 }}
 
 # Input
-Existing Clusters:
-{existing_clusters}
+Here is the input empathy map covering what the user is doing and how they are feeling. 
 
-Observations:
+WHAT THE USER IS DOING:
 {observations}
+
+WHAT THE USER IS FEELING:
+{feelings}
+
+Here are the existing clusters:
+{existing_clusters}
 
 # Output
 Return a comprehesive set of clusters. Output only valid JSON matching this schema:
@@ -772,10 +962,100 @@ Always refer to observations by their numeric IDs.
     {{
       "evidence": "Why these items belong together, citing specific evidence from the observations",
       "members": [<ID1>, <ID2>, ...] // list of the numeric IDs in the cluster,
+      "reasoning": "1-2 sentences explaining what type of cluster this is (e.g., displaying the same pattern, contradictions, etc.)",
     }}
   ]
 }}
 """
+
+# LLM_CLUSTER_PROMPT = """
+# You are an expert in grounded theory. 
+
+# Your task is to group a list of user observations into clusters, but do **NOT** group them by superficial similarity (e.g., same app, same wording).
+# Instead, group observations based on **latent connections**, such as shared underlying causes, mechanisms, or enabling/blocking relationships.
+# Your goal is to uncover deeper insights about the user's behavior, motivations, and context.
+
+# Generate clusters different from the existing clusters.
+
+
+# # Task
+# Go through each observation and tag each with: who/what, when, domain, sentiment/valence, urgency, metric(s), location, and any constraints.
+
+# Think about the observations from {user_name}'s perspective.
+
+# From the observations,propose a set of candidate clusters. Think about the following when proposing clusters:
+# - Are there observations that display the same pattern of behavior? (e.g., a user is constantly checking their email and social media).
+# - Are there observations with the same mechanistic bridge (e.g., dissimilar items linked by an underlying force)?
+# - Is there a contradiction in any observations? (e.g., A user is learning about productivity hacks but also spending hours on distracting apps).
+# - Does one behavior enable or block another? (e.g., A user's late-night social activity consistently precedes them skipping their morning workout).
+# - Is there a recurring "cause and effect" or "action and reaction" pattern?
+
+# ## Guidelines
+# - **Look for latent similarities, not just surface wording.** Group observations if they reflect the same *underlying intent, constraint, or effect*, even if the specific tools, times, or phrasing differ.
+# - An observation can be mapped to multiple clusters
+# - Not all observations will be used!
+# - Err on the side of having more clusters that are more cohesive than less clusters that are more disparate.
+
+# # Examples
+# 1. 
+# Input: 
+# {{ "id": 101, "text": "User bought a book titled 'Atomic Habits'." }}
+# {{ "id": 205, "text": "User signed up for a 5 AM spin class but didn't attend." }}
+# {{ "id": 315, "text": "User ordered takeout for dinner 4 times this week." }}
+# {{ "id": 401, "text": "User spent 3 hours on a Saturday deep-cleaning their apartment." }}
+# {{ "id": 402, "text": "User created a detailed, color-coded weekly budget in a spreadsheet." }}
+
+# Output:
+# {{
+#      "clusters": [
+#          {{
+#             "evidence": "The user bought a book titled 'Atomic Habits' but didn't attend the spin class, showing that they are trying to improve their habits but struggling to follow through.",
+#             "members": [101, 205],
+#          }} , 
+#         {{
+#           "evidence": "The user is detail-oriented, spending time on deep cleaning and budgeting.",
+#           "members": [401, 402],
+#         }} 
+#      ]
+# }}
+
+# 2. 
+# Input: 
+# {{ "id": 5, "text": "User declined an event Family Dinner and rescheduled with 1-1 with their advisor." }}
+# {{ "id": 8, "text": "User views an email about a Labor Day Sale at Reformation." }}
+# {{ "id": 9, "text": "User sends a Slack message at 2:14AM about updates to their project." }}
+
+
+# Output:
+# {{
+#      "clusters": [
+#          {{
+#             "evidence": "The user is having difficult setting boundaries between their work and personal life, as evidenced by declining family events and sending work updates late at night.",
+#             "members": [5, 9],
+#          }} , 
+#      ]
+# }}
+
+# # Input
+# Existing Clusters:
+# {existing_clusters}
+
+# Observations:
+# {observations}
+
+# # Output
+# Return a comprehesive set of clusters. Output only valid JSON matching this schema:
+# Always refer to observations by their numeric IDs.
+
+# {{
+#   "clusters": [
+#     {{
+#       "evidence": "Why these items belong together, citing specific evidence from the observations",
+#       "members": [<ID1>, <ID2>, ...] // list of the numeric IDs in the cluster,
+#     }}
+#   ]
+# }}
+# """
 
 LLM_CLUSTER_PROMPT_SEED = """
 You are an expert in grounded theory.
@@ -845,60 +1125,41 @@ Always refer to observations by their numeric IDs.
 """
 
 LLM_INSIGHT_PROMPT = """
-You are an expert in grounded theory. Given a **group of observations**, your task is to produce a higher-level insight.
+You are an expert in design-thinking in the EMPATHIZE and DEFINE stages. 
+
+Given a **group of observations and evidence supporting the observations**, your task is to produce a higher-level theme. 
 
 # Task
-Consider the following criteria when generating insights:
-- Why these specific items belong together.
-- The causal forces or mechanisms behind the pattern.
-- Potential implications or consequences.
+Follow the following steps to generate a theme:
+1. Hypothesize the motivation behind each of the observations. Ask yourself: Why are these observations happening? 
+What is the user thinking or feeling? Form an initial hypothesis for the theme. Generate 5 possible themes and assign them a probability as to how likely they are to be the theme.
+2. Consider what problems the user might be trying to solve. If they show any emotions (e.g., frustration, delight, confusion), update the theme hypotheses and probabilities.
+3. Think about potential goals that the user might be trying to achieve. Use this to update the theme hypotheses and probabilities.
+4. After this process, select the theme with the highest probability.
+
+For each step in your reasoning, briefly write out your thought process, your current hypothesis of the goals as a numbered list, and what the updated list would be after your reasoning.
 
 ## Guidelines
-- Insights should be non-obvious. Avoid banal restatements.
-- Do NOT describe workflows narratively.
-- Do NOT merge multiple distinct themes into one insight.
-- Do NOT produce narrative-style summaries. 
-
-## Example
-Grouped Observations:
-{{ "id": 101, "text": "User bought a book titled 'Atomic Habits'." }}
-{{ "id": 205, "text": "User signed up for a 5 AM spin class but didn't attend." }}
-{{ "id": 8, "text": "User snoozed the Time Limit on their phone for TikTok for 15 minutes'." }},
-{{ "id": 10, "text": "User disabled the Time Limit on their phone for TikTok'." }},
-
-
-Explanation for grouping:
-The user bought a book titled 'Atomic Habits' but didn't attend the spin class, showing that they are trying to improve their habits but struggling to follow through.
-
-Output: 
-{{
-  "observations": [
-    {{
-      "observation": "User is actively seeking behavior change but struggling to follow through with the habits they set.",
-      "reasoning": "Purchasing 'Atomic Habits' suggests an interest in improving routines, yet missing the 5 AM spin class indicates difficulty sustaining new habits. This pattern implies a potential mismatch between aspirations and current energy levels, schedules, or motivation. The evidence suggests that while the user desires structure and self-improvement, lifestyle constraints or competing priorities may be preventing follow-through.",
-    }}
-  ]
-}}
+- Themes should be non-obvious. Avoid banal restatements.
+- Themes should be distinct. Do NOT merge multiple distinct themes into one theme.
+- Themes should be succinct. Do NOT produce narrative-style summaries.
 
 # Input
 Grouped Observations:
 {observations}
 
-Explanation for grouping:
+Explanation for Grouping:
 {reasoning}
 
 # Output 
-Return **only** valid JSON in the following structure:
+Return **only** valid JSON in the following structure. Use language that would be accessible to a lay person. Avoid over-generalizations. 
 
-
-{{  
-  "observations": [
-    {{
-      "observation": "New insight from the observations",
-      "evidence": "1-2 sentences explaining the observation, citing specific evidence from the observations",
-    }}
-  ]
+{{
+  "theme": "2-6 words describing the name of the theme",
+  "description": "1-2 sentence description of the theme",
+  "evidence": "1-2 sentences explaining how the observations support the theme",
 }}
+
 """
 
 INTRUSION_TEST = """
@@ -1015,8 +1276,6 @@ An interesting insight is one that is unique to the user, is not something expec
 
 If the insight could have been guessed without observing the user, it is NOT interesting. 
 
-Be critical when assessing interestingness. 
-
 # Input
 Insight:
 {new_insight}
@@ -1024,7 +1283,24 @@ Insight:
 # Output
 Return only the following JSON and nothing else:
 {{
-  "judgement": 1 if the insight is interesting, 0 if the insight is not interesting.
+  "judgement": Score from 1-10 of how interesting the insight where 1 is not interesting / generic and 10 is very interesting / unique.
   "reason": "Explain why the insight is interesting or not interesting."
 }}
 """
+
+# ## Example
+# Grouped Observations:
+# {{ "id": 101, "text": "User bought a book titled 'Atomic Habits'." }}
+# {{ "id": 205, "text": "User signed up for a 5 AM spin class but didn't attend." }}
+# {{ "id": 8, "text": "User snoozed the Time Limit on their phone for TikTok for 15 minutes'." }},
+# {{ "id": 10, "text": "User disabled the Time Limit on their phone for TikTok'." }},
+
+# Explanation for grouping:
+# The user bought a book titled 'Atomic Habits' but didn't attend the spin class, showing that they are trying to improve their habits but struggling to follow through.
+
+# Output: 
+# {{
+#   "theme": "",
+#   "description": "1-2 sentence description of the theme",
+#   "evidence": "1-2 sentences explaining how the observations support the theme",
+# }}
