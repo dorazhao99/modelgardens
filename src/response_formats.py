@@ -31,7 +31,6 @@ class Observation(BaseModel):
     description: str 
     evidence: str
     confidence: int
-    interestingness: int
 
 class ObservationResponse(BaseModel):
     observations: List[Observation]

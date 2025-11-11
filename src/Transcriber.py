@@ -13,7 +13,7 @@ from openai import AsyncOpenAI
 from dotenv import load_dotenv
 from BM25 import BM25NeedsIndex
 from EmbeddingStore import EmbeddingsStore
-from utils import call_gpt
+from utils import call_gpt, group_and_sort_sessions
 load_dotenv()
 
 class Transcriber():
@@ -63,15 +63,14 @@ class Transcriber():
         actions = []
         for fname in fnames:
             # INSERT_YOUR_CODE
-            creation_time = os.path.getctime(f'/Users/dorazhao/Documents/modelgardens/src/infact_dataset/summaries/{self.index}/{fname}')
+            creation_time = os.path.getctime(f'../data/{self.index}/processed_data/summaries/{fname}')
             formatted_creation_time = time.strftime("%m-%d-%Y (%H:%M:%S)", time.localtime(creation_time))
             actions.append(f"User's Actions at {formatted_creation_time}")
-            actions.append(Transcriber._load_markdown(f'/Users/dorazhao/Documents/modelgardens/src/infact_dataset/summaries/{self.index}/{fname}'))
+            actions.append(Transcriber._load_markdown(f'../data/{self.index}/processed_data/summaries/{fname}'))
             if include_transcript:
                 actions.append(f"Transcription of User's Screen")
-                actions.append(Transcriber._load_markdown(f'/Users/dorazhao/Documents/modelgardens/src/infact_dataset/transcripts/{self.index}/{fname}'))
+                actions.append(Transcriber._load_markdown(f'../data/{self.index}/processed_data/transcripts/{fname}'))
         actions = '\n'.join(actions)
-        pdb.set_trace()
         return actions
 
     def _handle_identical(self, new_obs:dict, targets: list[str]):
@@ -82,132 +81,137 @@ class Transcriber():
             tgt = self.all_actions[tid_]
             self.all_actions[tid_]['evidence'].extend(new_evidence)
 
-    def _handle_different(self, new_obs:dict, description_only:str):
+    def _handle_different(self, new_obs:dict):
         if not self._exists_id(new_obs["id"]):
             self.all_actions[new_obs['id']] = new_obs
-            self.actions_index.add_needs([(new_obs["id"], description_only)])
         return 
     
-    def _split_sessions(self, input_dir: str, files: list[str], threshold: int = 3600):
+    # def _split_sessions(self, input_dir: str, files: list[str], threshold: int = 3600):
+    #     """
+    #         Split files into active sessions. 
+    #         An active session is a period of time where there are continuous screenshots. 
+    #     """
+    #     sessions = []
+    #     prev_timestamp = 0
+    #     session_start = 0
+    #     for i, file in enumerate(files):
+    #         timestamp = os.path.getctime(os.path.join(input_dir, file))
+    #         if i == 0:
+    #             prev_timestamp = timestamp
+    #         time_diff = timestamp - prev_timestamp
+    #         assert time_diff >= 0, "Time difference is negative"
+    #         if time_diff > threshold:
+    #             sessions.append(files[session_start:i])
+    #             session_start = i
+    #         prev_timestamp = timestamp
+    #     sessions.append(files[session_start:])
+    #     return sessions
+
+    def _split_sessions(self, input_dir: str):
         """
             Split files into active sessions. 
             An active session is a period of time where there are continuous screenshots. 
         """
-        sessions = []
-        prev_timestamp = 0
-        session_start = 0
-        for i, file in enumerate(files):
-            timestamp = os.path.getctime(os.path.join(input_dir, file))
-            if i == 0:
-                prev_timestamp = timestamp
-            time_diff = timestamp - prev_timestamp
-            assert time_diff >= 0, "Time difference is negative"
-            if time_diff > threshold:
-                sessions.append(files[session_start:i])
-                session_start = i
-            prev_timestamp = timestamp
-        sessions.append(files[session_start:])
+        sessions = set([])
+        for files in os.listdir(input_dir):
+            session_num = files.split('_')[0]
+            sessions.add(session_num)
+        sessions = sorted(list(sessions))
         return sessions
     
-    async def observer_pipeline_batched(self, input_dir, end_file=-1, include_transcript=False, window_size=5):
-        """
-            Same as observer_pipeline, but it is batched
-        """
-        return 
 
     async def observer_pipeline(self, input_dir, end_file=-1, include_transcript=False, window_size=5):
         """
             
         """
         prompt = observer.OBSERVE_PROMPT
-        files = sorted(
-            [f for f in os.listdir(input_dir) if f.endswith(".md")],
-            key=lambda x: os.path.getctime(os.path.join(input_dir, x))
-        )
-
+        # files = sorted(
+        #     [f for f in os.listdir(input_dir) if f.endswith(".md")],
+        #     key=lambda x: os.path.getctime(os.path.join(input_dir, x))
+        # )
+        # print(files)
         # split files into active sessions 
-        sessions = self._split_sessions(input_dir, files)
-        if end_file == -1:
-            end_file = len(files)
-
+        # sessions = self._split_sessions(input_dir, files)
+        # files = sort_sessions(os.listdir(input_dir))
+        # sessions = self._split_sessions(input_summaries_dir)
+        # print(files)
+        sessions = group_and_sort_sessions(os.listdir(input_dir))
         print("Transcriber Pipeline", end_file)
 
         to_end_count = 0
         end_session = False
 
-        for session in sessions:
+        for session in sessions[1:2]:
             session_length = len(session)
             for index in range(0, session_length, window_size):
                 try:
                     fnames = session[index: index + window_size]
                     start_file = fnames[0]
                     tid = os.path.splitext(start_file)[0]
-                    print(tid)
                     iter_t0 = time.perf_counter()
                     # try:
                     # ----- Load and propose -----
                     actions = self._get_actions(fnames, include_transcript=include_transcript)
-                    print(actions)
                     input_prompt = prompt.format(actions=actions, user_name=self.name)
                     new_needs = await self._guarded_call(self.client, input_prompt, self.model, resp_format=ObservationResponse)
 
-                    # ----- Assemble candidates -----
-                    cand_items = []
                     
                     for prop in new_needs.observations:
                         nid = f"{self.count}"
-                        item = {"id": nid, "description": prop.description, "evidence": [prop.evidence], "interestingness": prop.interestingness, "confidence": prop.confidence}
+                        item = {"id": nid, "description": prop.description, "evidence": [prop.evidence], "confidence": prop.confidence}
+                        self._handle_different(item)
                         # item = {"id": nid, "description": prop.description, "evidence": [prop.evidence], "generality": prop.generality, "interestingness": prop.interestingness}
                         self.count += 1
-                        cand_items.append(item)
-                    
-                    # ----- Batch embed + ANN pre-filter -----
-                    desc_only = [f"{c['description']}" for c in cand_items]
-                    vecs = self.embed_store.encode(desc_only, batch_size=int(os.getenv("EMB_BATCH", "256")))
-                    keep_mask = self.embed_store.batch_add_if_new([c["id"] for c in cand_items], vecs)
-                    kept = int(np.sum(keep_mask)) if len(keep_mask) else 0
-                    print(f"[{tid}] kept {kept}/{len(cand_items)}")
-
-                    # Prepare survivors but DO NOT add to BM25 yet
-                    survivors = [(c, do) for keep, c, do in zip(keep_mask, cand_items, desc_only) if keep]
-                    if not survivors:
-                        print(f"[{tid}] skip: all proposed needs failed ANN threshold")
-                        continue
-
-                    if len(self.actions_index.needs) == 0:
-                        for c, t in survivors:
-                            nid = c['id']
-                            self.all_actions[nid] = c
-                            self.actions_index.add_needs([(nid, t)])
-                    else:
-                        for new_obs, do in survivors:
-                            # --- (a) BM25 retrieval body for THIS survivor only (no self in index yet) ---
-                            input = f"ID: {new_obs['id']} | {new_obs['description']}"
-                            retrieved = self._search_bm25(do, top_k=3) # use description only to search for retrieved
-                            existing = []
-                            for r in retrieved:
-                                existing.append(f"ID: {r['id']} | {r['description']}")
-
-                            classifier_prompt = observer.SIMILAR_PROMPT.format(new=input, existing=existing)
-                            # print(classifier_prompt)
-                            resp = await self._guarded_call(self.client, classifier_prompt, self.model, resp_format=RelationsResponse)
-                            print('Relations', resp)
-
-                            relation = resp.relations
-                            label = relation.score
-                            _, t_targets = str(relation.source), relation.target
-
-                            if label < 8:
-                                self._handle_different(new_obs, do) 
-                            elif label >= 8:
-                                if t_targets:
-                                    self._handle_identical(new_obs, t_targets)
-                    to_end_count += len(fnames)
-                    if to_end_count >= end_file:
-                        end_session = True
-                        break
+                        # cand_items.append(item)
                 except Exception as e:
                     print(f"[{tid}] ERROR: {e}")
+                #     # ----- Batch embed + ANN pre-filter -----
+                #     desc_only = [f"{c['description']}" for c in cand_items]
+                #     vecs = self.embed_store.encode(desc_only, batch_size=int(os.getenv("EMB_BATCH", "256")))
+                #     keep_mask = self.embed_store.batch_add_if_new([c["id"] for c in cand_items], vecs)
+                #     kept = int(np.sum(keep_mask)) if len(keep_mask) else 0
+                #     print(f"[{tid}] kept {kept}/{len(cand_items)}")
+
+                #     # Prepare survivors but DO NOT add to BM25 yet
+                #     survivors = [(c, do) for keep, c, do in zip(keep_mask, cand_items, desc_only) if keep]
+                #     if not survivors:
+                #         print(f"[{tid}] skip: all proposed needs failed ANN threshold")
+                #         continue
+
+                #     if len(self.actions_index.needs) == 0:
+                #         for c, t in survivors:
+                #             nid = c['id']
+                #             self.all_actions[nid] = c
+                #             self.actions_index.add_needs([(nid, t)])
+                #     else:
+                #         for new_obs, do in survivors:
+                #             # --- (a) BM25 retrieval body for THIS survivor only (no self in index yet) ---
+                #             input = f"ID: {new_obs['id']} | {new_obs['description']}"
+                #             retrieved = self._search_bm25(do, top_k=3) # use description only to search for retrieved
+                #             existing = []
+                #             for r in retrieved:
+                #                 existing.append(f"ID: {r['id']} | {r['description']}")
+
+                #             classifier_prompt = observer.SIMILAR_PROMPT.format(new=input, existing=existing)
+                #             # print(classifier_prompt)
+                #             resp = await self._guarded_call(self.client, classifier_prompt, self.model, resp_format=RelationsResponse)
+                #             print('Relations', resp)
+
+                #             relation = resp.relations
+                #             label = relation.score
+                #             _, t_targets = str(relation.source), relation.target
+
+                #             if label < 8:
+                #                 self._handle_different(new_obs, do) 
+                #             elif label >= 8:
+                #                 if t_targets:
+                #                     self._handle_identical(new_obs, t_targets)
+                #     to_end_count += len(fnames)
+                #     if to_end_count >= end_file:
+                #         end_session = True
+                #         break
+                # except Exception as e:
+                #     print(f"[{tid}] ERROR: {e}")
             # Save at the end of each session
             print("Save to", self.save_file)
             with open(self.save_file, "wb") as f:
@@ -220,13 +224,13 @@ class Transcriber():
 async def main(args):
     include_transcript = True
     timestamp = time.strftime("%Y%m%d_%H%M%S")
-    save_file = f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/actions/{args.index}_{args.model}_{'both' if include_transcript else 'summary'}_tooleval_{timestamp}.json"
+    save_file = f"/Users/dorazhao/Documents/modelgardens/data/{args.index}/pipeline_outputs/session-0/actions.json"
     t = Transcriber(args.model, str(args.index), args.user, save_file=save_file)
-    input_dir = f"/Users/dorazhao/Documents/modelgardens/src/infact_dataset/transcripts/{args.index}"
+    input_dir = f"/Users/dorazhao/Documents/modelgardens/data/{args.index}/processed_data/summaries"
 
     results = await t.observer_pipeline(input_dir, end_file=args.end_file, include_transcript=include_transcript)
-    with open(save_file, "wb") as f:
-        f.write(orjson.dumps(results, option=orjson.OPT_INDENT_2))
+    # with open(save_file, "wb") as f:
+    #     f.write(orjson.dumps(results, option=orjson.OPT_INDENT_2))
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run Observer on transcripts.")
