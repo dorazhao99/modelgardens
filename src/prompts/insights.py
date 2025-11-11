@@ -8,6 +8,7 @@ class ClassifierMerge(BaseModel):
 class Insight(BaseModel):
     title: str
     insight: str
+    context: str
 
 class Insights(BaseModel):
     insights: List[Insight]
@@ -16,12 +17,23 @@ class Evidence(BaseModel):
     supporting: List[str]
     contradicting: List[str]
 
+class FinalInsight(BaseModel):
+    title: str
+    tagline: str
+    insight: str
+    context: str
+    merged: List[str]
+    reasoning: str
+
+
+class FinalInsights(BaseModel):
+    insights: List[FinalInsight]
+
 class InsightSupportResponse(BaseModel):
     evidence: List[str]
     confidence: int
     reasoning: str
     context: str
-
 
 class RefinedInsightResponse(BaseModel):
     insight: Insight 
@@ -29,6 +41,24 @@ class RefinedInsightResponse(BaseModel):
 
 class SimilarInsightsResponse(BaseModel): 
     insights: List[RefinedInsightResponse]
+
+INSIGHT_FORMAT = """
+{{
+    "insights": [
+        {{
+            "title": "Thematic title of the insight",
+            "insight": "Insight in 3-4 sentences",
+            "context": "[1-2 sentences when this insight might apply (e.g., when writing text, in social settings)]",
+        }}, 
+        {{
+            "title": "Thematic title of the insight",
+            "insight": "Insight in 3-4 sentences",
+            "context": "[1-2 sentences when this insight might apply (e.g., when writing text, in social settings)]",
+        }}
+        ...
+    ]
+}}
+"""
 
 INSIGHT_PROMPT_INTERVIEW = """
 You are an expert in design-thinking, especially in the Empathize and Define stages. Your task is to produce a set of insights given an empathy map about a user. 
@@ -79,21 +109,7 @@ You are provided with a list of insights in prose format.
 
 # Output
 Return your results in this exact JSON format:
-{{
-    "insights": [
-        {{
-            "title": "Thematic title of the insight",
-            "insight": "Insight in 3-4 sentences",
-            "context": "[1-2 sentences when this insight might apply (e.g., when writing text, in social settings)]",
-        }}, 
-        {{
-            "title": "Thematic title of the insight",
-            "insight": "Insight in 3-4 sentences",
-            "context": "[1-2 sentences when this insight might apply (e.g., when writing text, in social settings)]",
-        }}
-        ...
-    ]
-}}
+{format}
 """
 
 INSIGHT_SUPPORT_PROMPT = """
