@@ -120,7 +120,7 @@ QUERY:
 {query}
 
 ## Output
-Provide your advice response informed by empathy and design-thinking reasoning, followed by structured reflective metadata in JSON format:
+Provide your output in the following JSON format:
 
 {{
     "insights": [List of IDs of the selected insight (if any).],

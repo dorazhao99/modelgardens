@@ -1,24 +1,26 @@
 import os
 import asyncio
 import json
-from anthropic import Anthropic
+from anthropic import AsyncAnthropic
 from openai import AsyncOpenAI
 from typing import List
 from dotenv import load_dotenv
+from openai.types.responses import response_status
 from utils import call_gpt, call_anthropic
-from advice import INSIGHT_ADVICE_PROMPTS, ADVICE_PROMPT, SYSTEM_PROMPT, InsightBasedAdvice, Advice, RESPONSE_ADVICE_PROMPT
+from advice import INSIGHT_ADVICE_PROMPTS
+from longterm_prompts import BASELINE_LONGTERM_PROMPT, LONGTERM_SOLUTION_PROMPT
 
 load_dotenv()
 
 
-class AdviceSeeker:
+class LongtermSolution:
     def __init__(self, model: str, fidx: str, user: str, save_file: str, limit: int = 2):
         self.model = model
         self.fidx = fidx
         self.user = user
         self.save_file = save_file
         self.client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.anthropic_client = Anthropic(api_key=os.getenv("ANTHROPIC_KEY"))
+        self.anthropic_client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
         self._sem = asyncio.Semaphore(int(os.getenv("LLM_CONCURRENCY", "16")))
         self.insights = json.load(open(f"../data/{self.fidx}/pipeline_outputs/session-meta/insights_prompt.json"))["insights"]
         self.fmt_insights = self._format_insights()
@@ -37,29 +39,39 @@ class AdviceSeeker:
         async with self._sem:
             return await call_gpt(*args, **kwargs)
     
-    async def get_hmw(self, query: str):
-        i_prompt = self.insight_prompt.format(user_name=self.user, insights=self.fmt_insights, query=query, limit=self.limit)
-        i_response = await self._guarded_call(self.client, i_prompt, self.model, resp_format=InsightBasedAdvice, systems_message=SYSTEM_PROMPT)
-        return i_response
-    
-    async def get_advice(self, query:str, hmw_statement:str, hmw_candidates:List[str]):
-        baseline_response = call_anthropic(self.anthropic_client, query, self.claude_model)
-        output['baseline_response'] = baseline_response
-        if len(hmw_candidates) > 0 and hmw_statement.lower() != 'none':
-            response_prompt = RESPONSE_ADVICE_PROMPT.format(query=query, hmw_statement=hmw_statement)
-            print(response_prompt)
-            response = call_anthropic(self.anthropic_client, response_prompt, self.claude_model)
-            output = {'response': response, 'query': query, 'hmw_statement': hmw_statement}
-        else:
-            output = {'response': "Same as baseline", 'query': query, 'hmw_statement': hmw_statement}
-        return output
+
+    async def get_baseline_solutions(self, query:str, solution_limit:int = 3):
+        baseline_prompt = BASELINE_LONGTERM_PROMPT.format(scenario=query, limit=solution_limit, user_name=self.user)
+        print(baseline_prompt)
+        baseline_response = await call_anthropic(self.anthropic_client, baseline_prompt, self.claude_model)
+        return baseline_response
+
+    async def get_insight_solutions(self, query:str, hmws: List[str], insights: str):
+        tasks = []
+        for hmw in hmws:
+            baseline_prompt = LONGTERM_SOLUTION_PROMPT.format(scenario=query, hmw=hmw, limit=self.limit, user_name=self.user, insights=insights)
+            print(baseline_prompt)
+            tasks.append(call_anthropic(self.anthropic_client, baseline_prompt, self.claude_model))
+        responses = await asyncio.gather(*tasks)
+        for hmw, response in zip(hmws, responses):
+            print(f"HMW: {hmw}")
+            print(response)
+            print("-"*100)
+        return responses
 
 
 async def sandbox():
-    advice_seeker = AdviceSeeker(model="gpt-4.1", fidx="msl_pilot", user="Michelle", save_file="advice.json", limit=3)
-    print(advice_seeker.fmt_insights)
-    resp = await advice_seeker.get_hmw("Build a personalized calendar manager that helps me manage my time and schedule my tasks.")
+    advice_seeker = LongtermSolution(model="gpt-4.1", fidx="dora_pilot", user="Dora", save_file="advice.json", limit=3)
+    resp = await advice_seeker.get_baseline_solutions("Need assistance when writing CHI reviews")
     print(resp)
+    hmws = [
+        "Amp up the good: HMW leverage Dora's rigorous critique skills to build her confidence in her own reviewing authority?",
+        "Question the assumption: HMW reframe external validation as a complement rather than a prerequisite to Dora's expertise?",
+        "Remove the bad: HMW reduce Dora's uncertainty spiral when evaluating CHI submissions so she trusts her analytical judgments?"
+    ]
+    insights = """The Imposter Among Experts: Seeking Validation While Validating Others: Dora feels uncertain of her authority despite clear analytical strength, persistently seeking external benchmarks and community standards to authorize her decisions while rigorously critiquing others' work. Nuance vs. Clarity: The Ethical Tension in Simplification: Dora feels committed to representing multiple perspectives accurately and sensitively, but the pressure to craft clear, impactful narratives for audiences forces difficult tradeoffs between honoring complexity and achieving engagement."""
+    resps = await advice_seeker.get_insight_solutions("Need assistance when writing CHI reviews", hmws, insights)
+    print(response_status)
 
 async def main():
     # questions = [
