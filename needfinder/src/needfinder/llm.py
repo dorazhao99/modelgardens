@@ -23,6 +23,8 @@ from anthropic import (
 
 MODEL_FAMILIES = {
     "gpt-4.1": {"provider": "openai", "context_window": 1000000},
+    "gpt-4.1-mini": {"provider": "openai", "context_window": 1000000},
+    "gpt-5-mini": {"provider": "openai", "context_window": 1000000},
     "claude-sonnet-4-5-20250929": {"provider": "anthropic", "context_window": 1000000},
 }
 
@@ -96,14 +98,11 @@ async def call_anthropic(
     stop=stop_after_attempt(1),
     retry=retry_if_exception_type((APIError, RateLimitError)),
 )
-async def call_gpt(
-    client, prompt, model, base_url="https://api.openai.com/v1", resp_format=None
-):
+async def call_gpt(client, prompt, model, resp_format=None):
     try:
         if resp_format == None:
             resp = await client.chat.completions.create(
                 model=model,
-                base_url=base_url,
                 messages=[{"role": "user", "content": prompt}],
                 response_format={"type": "text"},
             )
@@ -145,6 +144,10 @@ class LLM:
     async def call(self, prompt: str, resp_format=None):
         async with self._sem:
             if self.provider == "openai":
+                if resp_format == None:
+                    is_structured = False
+                else:
+                    is_structured = True
                 return await call_gpt(
                     client=self.client,
                     prompt=prompt,

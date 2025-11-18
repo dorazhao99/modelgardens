@@ -84,56 +84,6 @@ class NeedFinder:
             config = yaml.safe_load(f)
         return config
 
-    def _load_csv_data(self, csv_path: Union[str, Path]) -> List[dict]:
-        """
-        Load data from CSV file.
-
-        Expected CSV columns:
-        - transcripts: transcript content
-        - summaries: summary content
-        - timestamps: timestamp string
-        - session_number: session identifier (can be number or string)
-        """
-        sessions_dict: Dict[str, Dict[str, List[str]]] = defaultdict(
-            lambda: {"transcripts": [], "summaries": [], "timestamps": []}
-        )
-
-        with open(csv_path, "r", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-
-            # Validate required columns exist
-            required_columns = [
-                "transcripts",
-                "summaries",
-                "timestamps",
-                "session_number",
-            ]
-            if not all(col in reader.fieldnames for col in required_columns):
-                missing = [
-                    col for col in required_columns if col not in reader.fieldnames
-                ]
-                raise ValueError(f"CSV file is missing required columns: {missing}")
-
-            for row in reader:
-                session_num = str(row["session_number"]).strip()
-                sessions_dict[session_num]["transcripts"].append(
-                    row["transcripts"].strip()
-                )
-                sessions_dict[session_num]["summaries"].append(row["summaries"].strip())
-                sessions_dict[session_num]["timestamps"].append(
-                    row["timestamps"].strip()
-                )
-
-        # Convert to list of sessions, sorted by session number
-        sessions = []
-        for session_num in sorted(
-            sessions_dict.keys(),
-            key=lambda x: (int(x) if x.isdigit() else float("inf"), x),
-        ):
-            sessions.append(sessions_dict[session_num])
-
-        return sessions
-
     def _format_insights(self) -> str:
         fmt_insights = []
         for i, insight in enumerate(self.user_insights["insights"]):
@@ -146,7 +96,7 @@ class NeedFinder:
         transcripts: List[List[str]],
         summaries: List[List[str]],
         timestamps: Optional[List[List[str]]] = None,
-        num_sessions: int = 1,
+        context_anns: Optional[List[List[str]]] = None,
     ) -> List[dict]:
         """
         Get user insights from transcripts and summaries.
@@ -155,7 +105,8 @@ class NeedFinder:
             transcripts: List[List[str]] - List of transcripts for each session
             summaries: List[List[str]] - List of summaries for each session
             timestamps: Optional[List[List[str]]] - List of timestamps for each session (optional)
-            num_sessions: int - Number of sessions to process
+            context_anns: Optional[List[List[str]]] - List of context annotations for each segment of each session (optional)
+
 
         Returns:
             List[dict] - List of insights for each session
@@ -171,32 +122,31 @@ class NeedFinder:
         insight = InsightDiscovery(user_name=self.user_name)
         all_session_insights = []
 
-        for i, (transcript, summary) in enumerate(zip(transcripts, summaries)):
+        for i, (transcript, summary) in enumerate[tuple[List[str], List[str]]](
+            zip(transcripts, summaries)
+        ):
             session_timestamps = [timestamps[i]] if timestamps is not None else None
+            context_ann = context_anns[i] if i in context_anns else None
             # Make observations for this session
             observations = await insight.make_session_observations(
+                model=self.observer_model,
                 transcripts=transcript,
                 summaries=summary,
                 timestamps=session_timestamps,
-                model=self.observer_model.model_name,
+                context_ann=context_ann,
             )
 
-            print(observations)
             # Get insights from observations
             session_insights = await insight.get_insights(
-                observations=observations, model=self.insight_model.model_name
+                observations=observations, model=self.insight_model
             )
-
-            print(session_insights)
-
             all_session_insights.append(session_insights)
 
         # Synthesize insights across all sessions
         self.user_insights = all_session_insights
         user_insights = await insight.synthesize_insights(
-            insights=self.user_insights, model=self.synthesis_model.model_name
+            insights=self.user_insights, model=self.synthesis_model
         )
-
         return user_insights
 
     async def reframe_problem(
@@ -212,7 +162,7 @@ class NeedFinder:
 
         Returns:
             ReframedProblems: An object with the following attributes:
-                insights: List[dict] - List of selected insights           
+                insights: List[dict] - List of selected insights
                 hmw_candidates: List[str] - List of candidates problem reframings
                 reasoning: str - Reasoning for selecting the insights and problem reframings
         """

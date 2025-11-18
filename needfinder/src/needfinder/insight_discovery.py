@@ -1,10 +1,11 @@
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Dict
 import asyncio
 
 if __package__ is None or __package__ == "":
     # uses current directory visibility
     from prompts import (
         OBSERVE_PROMPT,
+        OBSERVE_PROMPT_WCONTEXT,
         INSIGHT_PROMPT,
         INSIGHT_JSON_FORMATTING_PROMPT,
         INSIGHT_FORMAT,
@@ -17,6 +18,7 @@ else:
     # uses current package visibility
     from .prompts import (
         OBSERVE_PROMPT,
+        OBSERVE_PROMPT_WCONTEXT,
         INSIGHT_PROMPT,
         INSIGHT_JSON_FORMATTING_PROMPT,
         INSIGHT_FORMAT,
@@ -65,24 +67,30 @@ class InsightDiscovery:
             feelings.append(observation["feeling"])
         return actions, feelings
 
-    def _reformat_observations(self, responses: List[Observations]) -> List[dict]:
+    def _reformat_observations(self, observations: List[Observations]) -> List[dict]:
         output = []
-        for response in responses:
-            output.append(
-                {
-                    "feeling": response.description,
-                    "action": response.evidence[0],
-                    "confidence": response.confidence,
-                }
-            )
+        for window_obs in observations:
+            try:
+                window_obs = window_obs.observations
+            except:
+                window_obs = window_obs["observations"]
+            for obs in window_obs:
+                output.append(
+                    {
+                        "feeling": obs.description,
+                        "action": obs.evidence[0],
+                        "confidence": obs.confidence,
+                    }
+                )
         return output
 
     async def make_session_observations(
         self,
+        model: LLM,
         transcripts: List[str],
         summaries: List[str],
         timestamps: Optional[List[str]] = None,
-        model: str = "gpt-4.1",
+        context_ann: Optional[List] = None,
         window_size: int = 5,
     ) -> List[dict]:
         """
@@ -94,12 +102,12 @@ class InsightDiscovery:
             timestamps: Optional[List[str]] - List of timestamps for the session (optional)
             user_name: str - Name of the user
             model: str - Model to use for the observations
+            context_ann: Optional[List] - List of context annotations for segments of the session (optional)
             window_size: int - Number of transcripts to include in a window (determined by context)
 
         Returns:
             List of observation responses for the session
         """
-        prompt = OBSERVE_PROMPT.format(transcripts=transcripts, summaries=summaries)
 
         assert len(transcripts) == len(
             summaries
@@ -112,6 +120,7 @@ class InsightDiscovery:
         session_length = len(transcripts)
 
         tasks = []
+
         for index in range(0, session_length, window_size):
             sel_transcripts = transcripts[index : index + window_size]
             sel_summaries = summaries[index : index + window_size]
@@ -120,15 +129,24 @@ class InsightDiscovery:
                 if timestamps is not None
                 else None
             )
+
             actions = self._get_actions(sel_transcripts, sel_summaries, sel_timestamps)
-            fmt_prompt = prompt.format(actions=actions, user_name=self.user)
-            tasks.append(LLM.call(fmt_prompt, model, resp_format=Observations))
+            if context_ann is not None:
+                sel_context_ann = context_ann[index : index + window_size]
+                sel_context_ann = set(sel_context_ann)
+                sel_context_ann = "\n".join(list(sel_context_ann))
+                fmt_prompt = OBSERVE_PROMPT_WCONTEXT.format(
+                    actions=actions, user_name=self.user, context=sel_context_ann
+                )
+            else:
+                fmt_prompt = OBSERVE_PROMPT.format(actions=actions, user_name=self.user)
+            tasks.append(model.call(prompt=fmt_prompt, resp_format=Observations))
         response = await asyncio.gather(*tasks, return_exceptions=True)
         response = self._reformat_observations(response)
         return response
 
     async def get_insights(
-        self, observations: List[dict], model: str, limit: int = 3
+        self, observations: List[dict], model: LLM, limit: int = 3
     ) -> List[dict]:
         """
         Get insights for a session of observations.
@@ -147,16 +165,21 @@ class InsightDiscovery:
         prompt = INSIGHT_PROMPT.format(
             actions=actions, feelings=feelings, limit=limit, user_name=self.user
         )
-        resp = await LLM.call(prompt, model)
+        resp = await model.call(prompt=prompt)
         insight_prompt = INSIGHT_JSON_FORMATTING_PROMPT.format(
             insights=resp, format=INSIGHT_FORMAT
         )
-        insight_resp = await LLM.call(insight_prompt, model, resp_format=Insights)
-        structured_insights = parse_model_json(insight_resp)
+        insight_resp = await model.call(prompt=insight_prompt, resp_format=Insights)
+        if model.provider == "anthropic":
+            structured_insights = parse_model_json(insight_resp)
+        else:
+            structured_insights = insight_resp
         return structured_insights
 
     async def synthesize_insights(
-        self, insights: List[List[dict]], model: str
+        self,
+        insights: List[List[dict]],
+        model: LLM,
     ) -> List[dict]:
         """
         Synthesize insights across multiple sessions.
@@ -172,14 +195,15 @@ class InsightDiscovery:
             return []
 
         fmt_insights = []
+        session_num = len(insights)
         for session_id, insights in enumerate(insights):
-            for idx, insight in enumerate(insights):
-                fmt_insight = f"ID {session_id}-{idx} | {insight['title']}: {insight['insight']}\nContext Insight Applies: {insight['context']}"
+            for idx, insight in enumerate(insights.insights):
+                fmt_insight = f"ID {session_id}-{idx} | {insight.title}: {insight.insight}\nContext Insight Applies: {insight.context}"
                 fmt_insights.append(fmt_insight)
         fmt_insights = "\n".join(fmt_insights)
         prompt = INSIGHT_SYNTHESIS_PROMPT.format(
-            input=fmt_insights, user_name=self.user, session_num=len(insights)
+            input=fmt_insights, user_name=self.user, session_num=session_num
         )
-        resp = await LLM.call(prompt, model)
+        resp = await model.call(prompt=prompt)
         final_insights = parse_model_json(resp)
         return final_insights
