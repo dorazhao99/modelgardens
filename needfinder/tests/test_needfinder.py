@@ -1,9 +1,11 @@
-from tkinter import N
+from openai import api_key
 from needfinder import NeedFinder
-import pytest
+from typing import List
 from needfinder.llm import LLM
-import os
 from dotenv import load_dotenv
+import pytest
+import re, os
+
 load_dotenv()
 
 TEST_INSIGHTS = {
@@ -45,18 +47,105 @@ TEST_INSIGHTS = {
 
 TEST_PROBLEM = "I need help writing reviews for CHI."
 
-@pytest.mark.asyncio
-async def test_needfinder_default():
-    n = NeedFinder(user_name="Dora")
-    assert n is not None
-    n.user_insights = TEST_INSIGHTS
-    prompt = await n.reframe_problem(problem_description=TEST_PROBLEM)
-    return prompt
+# @pytest.mark.asyncio
+# async def test_needfinder_default():
+#     n = NeedFinder(user_name="Dora")
+#     assert n is not None
+#     n.user_insights = TEST_INSIGHTS
+#     prompt = await n.reframe_problem(problem_description=TEST_PROBLEM)
+#     return prompt
+
+# @pytest.mark.asyncio
+# async def test_needfinder_openai():
+#     n = NeedFinder(user_name="Dora", reframer_model=LLM(name="gpt-4.1", api_key=os.getenv("OPENAI_API_KEY")))
+#     assert n is not None
+#     n.user_insights = TEST_INSIGHTS
+#     prompt = await n.reframe_problem(problem_description=TEST_PROBLEM)
+#     return prompt
+
+# @pytest.mark.asyncio
+# async def test_insights_synthesis():
+#   def _load_markdown(filepath):
+#     with open(filepath, "r", encoding="utf-8") as f:
+#         return f.read()
+#   def human_sort(s: str) -> List:
+#     return [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', s)]
+
+#   api_key = os.getenv("OPENAI_API_KEY")
+#   n = NeedFinder(user_name="Dora", \
+#     observer_model=LLM(name="gpt-4.1-mini", api_key=api_key), \
+#     insight_model=LLM(name="gpt-4.1-mini", api_key=api_key), \
+#     synthesis_model=LLM(name="gpt-4.1-mini", api_key=api_key), \
+#     reframer_model=LLM(name="gpt-4.1-mini", api_key=api_key))
+#   assert n is not None
+#   sessions = ["0", "1"]
+#   fpath = "/Users/dorazhao/Documents/modelgardens/data/dora_pilot/processed_data/{0}/session-{1}/"
+#   transcripts, summaries, timestamps = [], [], []
+#   for session in sessions:
+#     session_transcripts, session_summaries = [], []
+#     filenames = sorted(os.listdir(fpath.format("transcripts", session)), key=human_sort)
+#     for fname in filenames:
+#       transcript = _load_markdown(fpath.format("transcripts", session) + fname)
+#       summary = _load_markdown(fpath.format("summaries", session) + fname)
+#       session_transcripts.append(transcript)
+#       session_summaries.append(summary)
+#     transcripts.append(session_transcripts)
+#     summaries.append(session_summaries)
+#   insights = await n.get_insights(transcripts=transcripts, summaries=summaries)
+#   return insights
+
+ACTION_INTENTS = {
+    0: "Starting my day and working on miscellaneous tasks.", 
+    15: "Working on my PhD research project related to automated needfinding and refining my pipeline.", 
+    23: "Taking a phone call with my friend Duke from high school who is applying to the P.D. Soros fellowship which I won last year and giving advice on his application.", 
+    39: "Attending the HCI Seminar by Alexandra Olteanu where she is talking about rigor in Responsible AI and taking notes on the seminar content", 
+    69: "Attending my class PSCYH 251: Experimental Methods” where we are going through a tutorial on how to use Tidyverse in R",
+    139: "Attending a talk by Lucy Suchman and Terry Winograd on Generative Frictions and taking notes"
+}
 
 @pytest.mark.asyncio
-async def test_needfinder_openai():
-    n = NeedFinder(user_name="Dora", reframer_model=LLM(name="gpt-4.1", api_key=os.getenv("OPENAI_API_KEY")))
-    assert n is not None
-    n.user_insights = TEST_INSIGHTS
-    prompt = await n.reframe_problem(problem_description=TEST_PROBLEM)
-    return prompt
+async def test_insights_synthesis_context():
+  def _load_markdown(filepath):
+    with open(filepath, "r", encoding="utf-8") as f:
+        return f.read()
+  def human_sort(s: str) -> List:
+    return [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', s)]
+
+  api_key = os.getenv("OPENAI_API_KEY")
+  n = NeedFinder(user_name="Dora", \
+    observer_model=LLM(name="gpt-4.1-mini", api_key=api_key), \
+    insight_model=LLM(name="gpt-4.1-mini", api_key=api_key), \
+    synthesis_model=LLM(name="gpt-4.1-mini", api_key=api_key), \
+    reframer_model=LLM(name="gpt-4.1-mini", api_key=api_key))
+  assert n is not None
+  sessions = ["0", "1"]
+  fpath = "/Users/dorazhao/Documents/modelgardens/data/dora_pilot/processed_data/{0}/session-{1}/"
+  transcripts, summaries, context_anns = [], [], []
+
+  
+  for session in sessions:
+    session_transcripts, session_summaries, session_context_anns = [], [], []
+    filenames = sorted(os.listdir(fpath.format("transcripts", session)), key=human_sort)
+
+    action_idx = 0 
+    all_action_idxs = list(ACTION_INTENTS.keys())
+    current_action_idx = all_action_idxs[action_idx]
+    next_action_idx = all_action_idxs[action_idx + 1]
+
+    for idx, fname in enumerate(filenames):
+      transcript = _load_markdown(fpath.format("transcripts", session) + fname)
+      summary = _load_markdown(fpath.format("summaries", session) + fname)
+      session_transcripts.append(transcript)
+      session_summaries.append(summary)
+      if idx >= next_action_idx:
+        if action_idx + 1 < len(all_action_idxs):
+          action_idx += 1
+          current_action_idx = all_action_idxs[action_idx]
+          if action_idx + 1 < len(all_action_idxs):
+            next_action_idx = all_action_idxs[action_idx + 1]
+      session_context_anns.append(ACTION_INTENTS[current_action_idx])
+    transcripts.append(session_transcripts)
+    summaries.append(session_summaries)
+    context_anns.append(session_context_anns)
+  insights = await n.get_insights(transcripts=transcripts, summaries=summaries, context_anns=context_anns)
+  return insights
