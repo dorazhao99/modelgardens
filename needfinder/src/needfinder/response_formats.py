@@ -1,21 +1,26 @@
 from pydantic import BaseModel
 from typing import List
 
+
 class Observation(BaseModel):
-    description: str 
+    description: str
     evidence: str
     confidence: int
 
+
 class Observations(BaseModel):
     observations: List[Observation]
+
 
 class Insight(BaseModel):
     title: str
     insight: str
     context: str
 
+
 class Insights(BaseModel):
     insights: List[Insight]
+
 
 class FinalInsight(BaseModel):
     title: str
@@ -25,5 +30,12 @@ class FinalInsight(BaseModel):
     merged: List[str]
     reasoning: str
 
+
 class FinalInsights(BaseModel):
     insights: List[FinalInsight]
+
+
+class ReframedProblems(BaseModel):
+    insights: List[str]
+    reasoning: str
+    hmw_candidates: List[str]

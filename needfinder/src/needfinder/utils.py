@@ -29,7 +29,9 @@ def extract_json_snippet(text: str) -> str:
         start = brace_idx.start()
         end = text.rfind(closing)
         if end == -1:
-            raise ValueError("Could not find matching closing bracket for JSON payload.")
+            raise ValueError(
+                "Could not find matching closing bracket for JSON payload."
+            )
         candidate = text[start : end + 1]
 
     candidate = candidate.strip()
@@ -80,4 +82,6 @@ def parse_model_json(text: str, *, logger: logging.Logger | None = None) -> Any:
                 logger.warning("Parsed JSON after sanitising LLM output.")
             return _loads(sanitised)
         except json.JSONDecodeError as exc:
-            raise ValueError(f"Unable to parse JSON from model response: {exc}") from exc
+            raise ValueError(
+                f"Unable to parse JSON from model response: {exc}"
+            ) from exc

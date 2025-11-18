@@ -1,0 +1,16 @@
+site_name: needfinder
+site_url: https://dorazhao99.github.io/needfinder/
+repo_url: https://github.com/dorazhao99/needfinder
+theme:
+  name: material
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+
+nav:
+  - Home: index.md
+  - Usage: usage.md
+  - API Reference:
+      - needfinder: api/needfinder.md

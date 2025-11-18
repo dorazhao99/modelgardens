@@ -92,6 +92,24 @@ Here is a summary of the user's actions and screen activities:
 {actions}
 """
 
+INSIGHT_FORMAT = """
+{{
+    "insights": [
+        {{
+            "title": "Thematic title of the insight",
+            "insight": "Insight in 3-4 sentences",
+            "context": "[1-2 sentences when this insight might apply (e.g., when writing text, in social settings)]",
+        }}, 
+        {{
+            "title": "Thematic title of the insight",
+            "insight": "Insight in 3-4 sentences",
+            "context": "[1-2 sentences when this insight might apply (e.g., when writing text, in social settings)]",
+        }}
+        ...
+    ]
+}}
+"""
+
 INSIGHT_PROMPT = """
 You are an expert in design-thinking, especially in the Empathize and Define stages. Your task is to produce a set of insights given an empathy map about a user. 
 
@@ -152,5 +170,68 @@ Return the final list of insights in a JSON format.  When writing the insight an
         }},
     ...
     ]
+}}
+"""
+
+REFRAME_PROBLEM_PROMPT = """
+You are an expert in design-thinking, specializing in the EMPATHIZE and DEFINE steps, combining **empathic insight analysis** with the **“How Might We” (HMW)** framework for creative problem reframing and solution generation.  
+Your goal is to understand the human behind the query and use empathy, context, and creative reasoning to generate advice that aligns with their deeper needs or goals.
+
+## Step-by-Step Methodology
+
+### 1.Evaluate insight relevance
+Read the **problem description** and the **insights** about {user_name}.  
+Determine whether any insights are relevant to the user’s problem description context.  
+If no insights are clearly relevant, return an empty list.  
+If one or more are relevant, select the **AT MOST {insight_lim} most relevant insights**.
+Err on the side of caution and assume that the insights are not relevant unless they are strongly likely to be relevant.
+
+
+### 2. Reframe the problem using the HMW framework
+If an insight is relevant:
+- Treat the query as the **problem scenario**.  
+- Reframe the query into a **“How Might We” statement**. A "How Might We" statement is a small actionable questions that retain your unique and specific perspective. Generate at least 3 candidate HMW statements.
+
+Strategies to generate HMW question include the following:
+1. Amp up the good: Focus on what’s working well and make it even better.
+2. Remove the bad: Identify pain points and find ways to eliminate them.
+3. Explore the opposite: Flip the problem to see it from a radically different angle.
+4. Question the assumption: Challenge what’s being taken for granted.
+5. ID unexpected resources: Find overlooked assets or people that could help.
+6. Create an analogy from need or context: Use parallels from other domains for inspiration.
+7. Change a status quo: Challenge and rethink existing norms or processes.
+
+
+## Examples
+Problem Description: Need to increase customers at ice cream store
+User Insight: Licking someone else’s ice cream cone is more tender than a hug.
+
+1. HMW Statement: "Amp up the good: HMW make the “tandem” of ice cream cones?"
+2. HMW Statement: "Explore the opposite: HMW make solitary-confinement ice cream?"
+3. HMW Statement: "Create an analogy from need or context: HMW make ice cream like a therapy session?"
+
+Problem Description: Redesign the ground experience at a local international airport
+User Insight: Parents need to entertain their children is a large part of the burden so that they are not a nuisance to other passengers
+
+1. HMW Statement: "Remove the bad: HMW separate the kids from fellow passengers?"
+2. HMW Statement: "ID unexpected resources: HMW leverage free time of fellow passengers to share the load?"
+3. HMW Statement: "Change a status quo: HMW make playful, loud kids less annoying?"
+4. HMW Statement: "Play against the challenge: HMW make the airport a place that kids want to go?"
+
+
+## Input
+INSIGHTS:
+{insights}
+
+PROBLEM DESCRIPTION:
+{problem}
+
+## Output
+Provide your output in the following JSON format. Produce at least {hmw_lim} HMW statements.
+
+{{
+    "insights": [List of IDs of the selected insight (if any).],
+    "hmw_candidates": [List of candidate HMW statements. None if no insights were selected.],
+    "reasoning": "1–2 sentences explaining how and why specific insights shaped (or did not shape) the reframing and advice."
 }}
 """
